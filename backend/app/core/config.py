@@ -15,7 +15,7 @@ class Settings:
     socket_port: int = 5025
     command_timeout_ms: int = 3000
     catalog_path: Path = Path("backend/catalogs/areg_commands.json")
-    command_source_path: Path = Path(__file__).resolve().parents[3] / ".venv" / "commands.yaml"
+    command_source_path: Path = Path(__file__).resolve().parents[3] / "backend" / "commands.yaml"
 
 
 
@@ -35,5 +35,5 @@ def load_settings() -> Settings:
         socket_host=os.getenv("AREG_SOCKET_HOST", "127.0.0.1"),
         socket_port=int(os.getenv("AREG_SOCKET_PORT", "5025")),
         command_timeout_ms=int(os.getenv("AREG_COMMAND_TIMEOUT_MS", "3000")),
-        command_source_path=Path(command_source_env) if command_source_env else Path(__file__).resolve().parents[3] / ".venv" / "commands.yaml",
+        command_source_path=Path(command_source_env) if command_source_env else Path(__file__).resolve().parents[3] / "backend" / "commands.yaml",
     )

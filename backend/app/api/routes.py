@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import os
+import subprocess
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Query
+from fastapi.responses import FileResponse
 
 from backend.app.core.catalog import catalog_summary, refresh_catalog_cache
 from backend.app.core.areg_controller import AregSocketController
 from backend.app.core.catalog_ingest import CatalogIngestor
+from backend.app.core.command_registry import CommandRegistryService
 from backend.app.core.scenario_compiler import ScenarioCompileError, ScenarioCompiler
 from backend.app.core.scpi_service import ScpiService
 from backend.app.core.scenario_player import ScenarioPlayerService
@@ -48,8 +52,10 @@ from backend.app.models.scpi import (
     ConstantObjectRequest,
     MultiObjectRequest,
     AzimuthSweepRequest,
+    ConstantEchoPowerRequest,
     GenerationResponse,
     GeneratorStatusResponse,
+    SimulationOverviewResponse,
     ScenarioValidationRequest,
     ScenarioValidationResponse,
     ScenarioTransferRequest,
@@ -68,6 +74,8 @@ from backend.app.models.scpi import (
     FileTransferRemoteFileModel,
     FileTransferUploadRequest,
     FileTransferDownloadRequest,
+    ScenarioWorkspaceDownloadRequest,
+    ScenarioWorkspaceDownloadResponse,
     FileTransferRenameRequest,
     FileTransferDeleteRequest,
     FileTransferMkdirRequest,
@@ -82,7 +90,8 @@ router = APIRouter()
 service = ScpiService()
 compiler = ScenarioCompiler()
 areg_controller = AregSocketController()
-scenario_player_service = ScenarioPlayerService(service)
+command_registry = CommandRegistryService()
+scenario_player_service = ScenarioPlayerService(service, command_registry=command_registry)
 hardcopy_service = HardcopyService(service)
 generator_service = ScenarioGeneratorService()
 device_file_service = DeviceFileService(service)
@@ -118,7 +127,24 @@ async def get_catalog_summary() -> dict[str, object]:
 
 @router.get("/areg/library", response_model=AregCommandLibraryResponse)
 async def get_command_library() -> AregCommandLibraryResponse:
-    return AregCommandLibraryResponse.model_validate(areg_controller.command_library())
+    return AregCommandLibraryResponse.model_validate(command_registry.command_library())
+
+
+@router.get("/commands/registry")
+async def get_command_registry() -> dict[str, object]:
+    return command_registry.command_library()
+
+
+@router.get("/commands/lookup")
+async def lookup_command(command: str) -> dict[str, object]:
+    classification = service.classify_command(command)
+    result = command_registry.lookup(command)
+    return {
+        "command": command,
+        "command_type": classification.command_type,
+        "expect_response": classification.expect_response,
+        **result,
+    }
 
 
 @router.post("/catalog/ingest")
@@ -154,6 +180,36 @@ async def connect_session(payload: ConnectRequest) -> SessionState:
 async def disconnect_session() -> SessionState:
     state = await service.disconnect()
     return SessionState.model_validate(state.__dict__)
+
+
+@router.get("/simulation/overview", response_model=SimulationOverviewResponse)
+async def simulation_overview() -> SimulationOverviewResponse:
+    """Aggregate snapshot of AREG800A simulation state for the overview panel."""
+    from datetime import datetime
+
+    session = service.session_state()
+    cmd_logs = scenario_player_service.logger.get_all()
+    gen_logs = generator_service.get_generation_logs(limit=1)
+    last_cmd = cmd_logs[-1] if cmd_logs else None
+    last_gen = gen_logs[0] if gen_logs else None
+    total_gen = len(generator_service.state.generation_logs)
+
+    return SimulationOverviewResponse(
+        connected=session.connected,
+        host=session.host,
+        port=session.port,
+        transport=session.transport,
+        playback_state=str(scenario_player_service.current_playback_state),
+        current_scenario=scenario_player_service.selected_scenario,
+        replay_mode=str(scenario_player_service.current_replay_mode),
+        total_generated=total_gen,
+        last_generated_file=last_gen.get("output_filename") if last_gen else None,
+        last_generated_template=last_gen.get("template_type") if last_gen else None,
+        log_entry_count=len(cmd_logs),
+        last_command=last_cmd.command if last_cmd else None,
+        last_command_ok=last_cmd.ok if last_cmd else None,
+        timestamp=datetime.now().isoformat(timespec="seconds"),
+    )
 
 
 @router.post("/scpi/send", response_model=CommandResponse)
@@ -236,6 +292,11 @@ async def capture_hardcopy(payload: HardcopyRequest) -> HardcopyResponse:
             file_path=result["file_path"],
             file_format=result["file_format"],
             bytes_written=result["bytes_written"],
+            payload_bytes=result.get("payload_bytes", 0),
+            detected_type=result.get("detected_type"),
+            validation_ok=result.get("validation_ok", False),
+            diagnostics=result.get("diagnostics"),
+            log=result.get("log", []),
             transport=service.session_state().transport,
             message=result.get("message"),
             error=result.get("error"),
@@ -246,6 +307,11 @@ async def capture_hardcopy(payload: HardcopyRequest) -> HardcopyResponse:
             file_path=None,
             file_format=payload.file_format,
             bytes_written=0,
+            payload_bytes=0,
+            detected_type=None,
+            validation_ok=False,
+            diagnostics=None,
+            log=[],
             transport=service.session_state().transport,
             message=None,
             error=str(ex),
@@ -256,6 +322,11 @@ async def capture_hardcopy(payload: HardcopyRequest) -> HardcopyResponse:
             file_path=None,
             file_format=payload.file_format,
             bytes_written=0,
+            payload_bytes=0,
+            detected_type=None,
+            validation_ok=False,
+            diagnostics=None,
+            log=[],
             transport=service.session_state().transport,
             message=None,
             error=f"Unexpected error: {str(ex)}",
@@ -272,6 +343,7 @@ async def get_hardcopy_formats() -> dict[str, list[str]]:
 async def get_last_hardcopy() -> dict[str, object]:
     """Get information about the last successfully captured screenshot."""
     last_path = hardcopy_service.get_last_capture_path()
+    last_analysis = hardcopy_service.get_last_analysis() or {}
     if last_path and last_path.exists():
         stat = last_path.stat()
         return {
@@ -279,8 +351,66 @@ async def get_last_hardcopy() -> dict[str, object]:
             "file_path": str(last_path),
             "file_size": stat.st_size,
             "modified_time": stat.st_mtime,
+            "validation_ok": last_analysis.get("validation_ok", False),
+            "detected_type": last_analysis.get("detected_type"),
+            "diagnostics": last_analysis.get("diagnostics"),
         }
-    return {"ok": False, "file_path": None, "file_size": 0, "modified_time": None}
+    return {
+        "ok": False,
+        "file_path": None,
+        "file_size": 0,
+        "modified_time": None,
+        "validation_ok": last_analysis.get("validation_ok", False),
+        "detected_type": last_analysis.get("detected_type"),
+        "diagnostics": last_analysis.get("diagnostics"),
+    }
+
+
+@router.get("/hardcopy/analyze")
+async def analyze_hardcopy(file_path: str | None = Query(default=None)) -> dict[str, object]:
+    """Analyze the last or specified hardcopy file and return diagnostics."""
+    return hardcopy_service.analyze_file(file_path)
+
+
+@router.get("/hardcopy/content")
+async def get_hardcopy_content(file_path: str = Query(...)) -> FileResponse:
+    """Serve a locally saved hardcopy image for UI preview."""
+    path = Path(file_path)
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail=f"Hardcopy file not found: {file_path}")
+
+    suffix = path.suffix.lower()
+    media_type = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".bmp": "image/bmp",
+    }.get(suffix)
+    if media_type is None:
+        raise HTTPException(status_code=400, detail=f"Unsupported preview type: {suffix}")
+
+    return FileResponse(path=path, media_type=media_type, filename=path.name)
+
+
+@router.post("/hardcopy/open-file")
+async def open_hardcopy_file(payload: dict[str, str]) -> dict[str, object]:
+    """Open the captured file in the platform file browser."""
+    file_path = payload.get("file_path")
+    if not file_path:
+        raise HTTPException(status_code=400, detail="file_path is required")
+
+    path = Path(file_path)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
+
+    try:
+        if os.name == "nt":
+            os.startfile(path)  # type: ignore[attr-defined]
+        else:
+            subprocess.Popen(["xdg-open", str(path)])
+        return {"ok": True, "file_path": str(path)}
+    except Exception as ex:
+        raise HTTPException(status_code=500, detail=str(ex)) from ex
 
 
 # ============================================================================
@@ -290,12 +420,48 @@ async def get_last_hardcopy() -> dict[str, object]:
 
 @router.post("/scenario/scan", response_model=ScanScenariosResponse)
 async def scan_scenarios(payload: ScanScenariosRequest) -> ScanScenariosResponse:
-    """Scan for available scenarios on the instrument."""
+    """Scan for available scenarios: local ./scenarios/ directory + instrument (when connected)."""
+    from backend.app.models.scenario import ScenarioFile
+    import datetime
+
     try:
-        scenarios, error = await scenario_player_service.scan_scenarios(force_refresh=payload.force_refresh)
-        if error:
-            return ScanScenariosResponse(ok=False, scenarios=[], total_count=0, error=error)
-        return ScanScenariosResponse(ok=True, scenarios=scenarios, total_count=len(scenarios))
+        # --- Local scan: always include .osi files from ./scenarios/ ---
+        local_scenarios: list[ScenarioFile] = []
+        local_dir = Path("scenarios")
+        if local_dir.exists():
+            for osi_file in sorted(local_dir.glob("*.osi")):
+                stat = osi_file.stat()
+                local_scenarios.append(ScenarioFile(
+                    name=osi_file.name,
+                    path=str(osi_file.resolve()),
+                    extension=".osi",
+                    size_bytes=stat.st_size,
+                    modified_time=datetime.datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds"),
+                    is_loadable=True,
+                ))
+
+        # --- Instrument scan: only when connected ---
+        instrument_scenarios: list[ScenarioFile] = []
+        instrument_error: str | None = None
+        if scenario_player_service.scpi_service.transport.connected:
+            instrument_scenarios, instrument_error = await scenario_player_service.scan_scenarios(
+                force_refresh=payload.force_refresh
+            )
+
+        # Merge: local first, then instrument (deduplicate by name)
+        seen_names: set[str] = {s.name for s in local_scenarios}
+        for s in instrument_scenarios:
+            if s.name not in seen_names:
+                local_scenarios.append(s)
+                seen_names.add(s.name)
+
+        all_scenarios = local_scenarios
+        scenario_player_service.cached_scenarios = all_scenarios
+        # Surface instrument error only if no local results either
+        if instrument_error and not all_scenarios:
+            return ScanScenariosResponse(ok=False, scenarios=[], total_count=0, error=instrument_error)
+
+        return ScanScenariosResponse(ok=True, scenarios=all_scenarios, total_count=len(all_scenarios))
     except Exception as ex:
         raise HTTPException(status_code=500, detail=str(ex)) from ex
 
@@ -653,6 +819,54 @@ async def generate_azimuth_sweep(payload: AzimuthSweepRequest) -> GenerationResp
         )
 
 
+@router.post("/generator/constant-echo-power", response_model=GenerationResponse)
+async def generate_constant_echo_power(payload: ConstantEchoPowerRequest) -> GenerationResponse:
+    """Generate a constant echo power scenario.
+
+    RCS is compensated per OSI frame via the R⁴ radar range equation so that the
+    simulated received echo power at the radar sensor remains constant throughout
+    the approach:
+
+        RCS(R) [dBsm] = ref_rcs_dbsm + 40 · log₁₀(R / ref_range_m)
+    """
+    try:
+        result = generator_service.generate_constant_echo_power(
+            output_dir=payload.output_dir,
+            output_filename=payload.output_filename,
+            sensor_id=payload.sensor_id,
+            update_interval_s=payload.update_interval_s,
+            start_range_m=payload.start_range_m,
+            stop_range_m=payload.stop_range_m,
+            radial_velocity_mps=payload.radial_velocity_mps,
+            ref_rcs_dbsm=payload.ref_rcs_dbsm,
+            ref_range_m=payload.ref_range_m,
+            azimuth_deg=payload.azimuth_deg,
+            elevation_deg=payload.elevation_deg,
+            rcs_min_dbsm=payload.rcs_min_dbsm,
+            rcs_max_dbsm=payload.rcs_max_dbsm,
+            scenario_name=payload.scenario_name,
+        )
+        return GenerationResponse(
+            ok=result["ok"],
+            file_path=result["file_path"],
+            message_count=result["message_count"],
+            duration_s=result["duration_s"],
+            preview=result["preview"],
+            rcs_table=result.get("rcs_table"),
+            error=result["error"],
+        )
+    except Exception as ex:
+        return GenerationResponse(
+            ok=False,
+            file_path=None,
+            message_count=0,
+            duration_s=0.0,
+            preview=None,
+            rcs_table=None,
+            error=str(ex),
+        )
+
+
 @router.get("/generator/logs")
 async def get_generation_logs(limit: int = 50) -> dict[str, object]:
     """Get scenario generation logs (most recent first)."""
@@ -989,6 +1203,50 @@ async def download_file_transfer(payload: FileTransferDownloadRequest) -> FileTr
         bytes_transferred=result.bytes_transferred,
         duration=result.duration,
         error=result.error,
+    )
+
+
+@router.post("/scenario/files/download", response_model=ScenarioWorkspaceDownloadResponse)
+async def download_remote_scenario_to_workspace(payload: ScenarioWorkspaceDownloadRequest) -> ScenarioWorkspaceDownloadResponse:
+    local_dir = payload.local_dir or "./scenarios"
+    Path(local_dir).mkdir(parents=True, exist_ok=True)
+
+    result = file_transfer_service.download_osi_file(
+        config=_to_transfer_config(payload.config),
+        remote_path=payload.remote_path,
+        local_dir=local_dir,
+        overwrite=payload.overwrite,
+    )
+    if not result.ok or not result.local_path:
+        return ScenarioWorkspaceDownloadResponse(
+            ok=False,
+            message=result.message,
+            local_path=result.local_path,
+            remote_path=result.remote_path or payload.remote_path,
+            bytes_transferred=result.bytes_transferred,
+            duration=result.duration,
+            validation_ok=False,
+            size_bytes=0,
+            message_count=0,
+            error=result.error,
+        )
+
+    validation = generator_service.validate_osi_file(file_path=result.local_path)
+    message = result.message or "Scenario downloaded to workspace"
+    if payload.inspect_after_download:
+        message = f"{message}; ready for local inspection"
+
+    return ScenarioWorkspaceDownloadResponse(
+        ok=True,
+        message=message,
+        local_path=result.local_path,
+        remote_path=result.remote_path or payload.remote_path,
+        bytes_transferred=result.bytes_transferred,
+        duration=result.duration,
+        validation_ok=bool(validation.get("ok")),
+        size_bytes=int(validation.get("size_bytes") or 0),
+        message_count=int(validation.get("message_count") or 0),
+        error=validation.get("error"),
     )
 
 

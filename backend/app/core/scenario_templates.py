@@ -424,6 +424,232 @@ class MultiObjectTemplate:
         return messages, preview
 
 
+@dataclass
+class ConstantEchoPowerParams:
+    """Parameters for constant echo power scenario.
+
+    RCS is compensated per-step to maintain constant received echo power at the
+    radar receiver.  Derived from the radar range equation:
+
+        P_r  ∝  σ / R⁴
+
+    Keeping P_r constant requires:
+
+        σ(R) = σ_ref · (R / R_ref)⁴
+
+    In dBsm:
+
+        RCS(R) [dBsm] = ref_rcs_dbsm + 40 · log₁₀(R / ref_range_m)
+
+    Parameters
+    ----------
+    sensor_id:          Radar sensor ID
+    update_interval_s:  Interval between OSI messages (>= 0.01 s)
+    start_range_m:      Range at which the scenario begins
+    stop_range_m:       Range at which the scenario ends
+    radial_velocity_mps: Radial velocity (negative = moving toward radar)
+    ref_rcs_dbsm:       RCS value at the reference range (dBsm)
+    ref_range_m:        Reference range for the RCS compensation (m)
+    azimuth_deg:        Object azimuth in degrees
+    elevation_deg:      Object elevation in degrees
+    rcs_min_dbsm:       Lower clamp on compensated RCS (-30 dBsm by default)
+    rcs_max_dbsm:       Upper clamp on compensated RCS (60 dBsm by default)
+    """
+    sensor_id: int = 1
+    update_interval_s: float = 0.1
+    start_range_m: float = 120.0
+    stop_range_m: float = 20.0
+    radial_velocity_mps: float = -10.0
+    ref_rcs_dbsm: float = 10.0
+    ref_range_m: float = 100.0
+    azimuth_deg: float = 0.0
+    elevation_deg: float = 0.0
+    rcs_min_dbsm: float = -30.0
+    rcs_max_dbsm: float = 60.0
+
+
+class ConstantEchoPowerTemplate:
+    """Generate an OSI scenario with per-step RCS compensation for constant echo power.
+
+    The object moves from start_range_m toward stop_range_m at a constant
+    radial velocity.  At each step the RCS is recalculated so that the
+    theoretical received power at the radar remains constant:
+
+        RCS(R) [dBsm] = ref_rcs_dbsm + 40 · log₁₀(R / ref_range_m)
+
+    The resulting RCS value is clamped to [rcs_min_dbsm, rcs_max_dbsm] and
+    flagged with a warning when clamping actually occurs.
+    """
+
+    @staticmethod
+    def compensated_rcs_dbsm(
+        range_m: float,
+        ref_rcs_dbsm: float,
+        ref_range_m: float,
+        rcs_min_dbsm: float = -30.0,
+        rcs_max_dbsm: float = 60.0,
+    ) -> float:
+        """Return RCS in dBsm compensated for range via the R⁴ law."""
+        import math
+        if range_m <= 0 or ref_range_m <= 0:
+            return ref_rcs_dbsm
+        raw = ref_rcs_dbsm + 40.0 * math.log10(range_m / ref_range_m)
+        return max(rcs_min_dbsm, min(rcs_max_dbsm, raw))
+
+    @staticmethod
+    def validate_params(params: ConstantEchoPowerParams) -> tuple[bool, list[str]]:
+        """Validate constant echo power parameters."""
+        warnings: list[str] = []
+
+        if params.update_interval_s < 0.01:
+            return False, ["Update interval must be >= 0.01 s (10 ms)"]
+
+        if params.start_range_m <= 0:
+            return False, ["Start range must be positive"]
+
+        if params.stop_range_m < 0:
+            warnings.append("Stop range should be non-negative")
+
+        if params.ref_range_m <= 0:
+            return False, ["Reference range must be positive"]
+
+        range_decreasing = params.start_range_m > params.stop_range_m
+        moving_away = params.radial_velocity_mps > 0
+        if range_decreasing and moving_away:
+            warnings.append(
+                "Range decreases but velocity is positive (away from radar). "
+                "Consider a negative radial velocity."
+            )
+
+        if params.rcs_min_dbsm >= params.rcs_max_dbsm:
+            return False, ["rcs_min_dbsm must be less than rcs_max_dbsm"]
+
+        valid, error = validate_detection_params(
+            distance_m=params.start_range_m,
+            azimuth_deg=params.azimuth_deg,
+            elevation_deg=params.elevation_deg,
+            radial_velocity_mps=params.radial_velocity_mps,
+            rcs_dbsm=params.ref_rcs_dbsm,
+        )
+        if not valid:
+            return False, [error]
+
+        return True, warnings
+
+    @staticmethod
+    def generate(
+        params: ConstantEchoPowerParams,
+    ) -> tuple[list[bytes], ScenarioPreview, list[dict]]:
+        """Generate constant-echo-power OSI messages.
+
+        Returns
+        -------
+        messages:  serialised OSI frames
+        preview:   scenario metadata
+        rcs_table: list of {range_m, rcs_dbsm} sampled entries (≤ 20 rows)
+                   for display in the UI
+        """
+        import math
+
+        valid, warnings = ConstantEchoPowerTemplate.validate_params(params)
+        if not valid:
+            raise ValueError(f"Invalid parameters: {warnings[0]}")
+
+        messages: list[bytes] = []
+        rcs_table_raw: list[tuple[float, float]] = []
+        timestamp_sec = 0
+        timestamp_nanos = 0
+        current_range = params.start_range_m
+        range_step = params.radial_velocity_mps * params.update_interval_s
+        clamped_count = 0
+        message_count = 0
+
+        while (range_step > 0 and current_range <= params.stop_range_m) or \
+              (range_step < 0 and current_range >= params.stop_range_m) or \
+              (range_step == 0):
+
+            rcs = ConstantEchoPowerTemplate.compensated_rcs_dbsm(
+                current_range,
+                params.ref_rcs_dbsm,
+                params.ref_range_m,
+                params.rcs_min_dbsm,
+                params.rcs_max_dbsm,
+            )
+
+            # Detect clamping
+            raw_rcs = params.ref_rcs_dbsm + 40.0 * math.log10(
+                current_range / params.ref_range_m
+            ) if current_range > 0 and params.ref_range_m > 0 else params.ref_rcs_dbsm
+            if abs(raw_rcs - rcs) > 0.001:
+                clamped_count += 1
+
+            rcs_table_raw.append((current_range, rcs))
+
+            detection = RadarDetectionData(
+                distance_m=current_range,
+                azimuth_rad=degrees_to_radians(params.azimuth_deg),
+                elevation_rad=degrees_to_radians(params.elevation_deg),
+                radial_velocity_mps=params.radial_velocity_mps,
+                rcs_dbsm=rcs,
+            )
+
+            msg = generate_osi_msg(
+                sensor_id=params.sensor_id,
+                timestamp_sec=timestamp_sec,
+                timestamp_nanos=timestamp_nanos,
+                detections=[detection],
+            )
+            messages.append(msg)
+            message_count += 1
+
+            current_range += range_step
+            timestamp_sec, timestamp_nanos = add_timestamp_interval(
+                timestamp_sec, timestamp_nanos, params.update_interval_s
+            )
+
+            if message_count > 100_000:
+                warnings.append("Scenario truncated to 100,000 messages (safety limit)")
+                break
+
+        if clamped_count > 0:
+            warnings.append(
+                f"RCS was clamped to [{params.rcs_min_dbsm}, {params.rcs_max_dbsm}] dBsm "
+                f"at {clamped_count} of {message_count} steps."
+            )
+
+        duration_s = timestamp_sec + (timestamp_nanos / 1_000_000_000)
+
+        # Sample up to 20 representative rows for the UI table
+        if len(rcs_table_raw) <= 20:
+            sampled = rcs_table_raw
+        else:
+            step = max(1, len(rcs_table_raw) // 20)
+            sampled = rcs_table_raw[::step][:20]
+        rcs_table = [
+            {"range_m": round(r, 2), "rcs_dbsm": round(rcs_val, 2)}
+            for r, rcs_val in sampled
+        ]
+
+        all_rcs = [entry["rcs_dbsm"] for entry in rcs_table]
+        preview = ScenarioPreview(
+            duration_s=duration_s,
+            message_count=len(messages),
+            object_count=1,
+            min_range_m=min(params.start_range_m, params.stop_range_m),
+            max_range_m=max(params.start_range_m, params.stop_range_m),
+            min_azimuth_deg=params.azimuth_deg,
+            max_azimuth_deg=params.azimuth_deg,
+            min_velocity_mps=params.radial_velocity_mps,
+            max_velocity_mps=params.radial_velocity_mps,
+            min_rcs_dbsm=min(all_rcs) if all_rcs else params.ref_rcs_dbsm,
+            max_rcs_dbsm=max(all_rcs) if all_rcs else params.ref_rcs_dbsm,
+            estimated_file_size_bytes=sum(len(m) for m in messages) + len(messages) * 4,
+            warnings=warnings,
+        )
+
+        return messages, preview, rcs_table
+
+
 class AzimuthSweepTemplate:
     """Generate an azimuth sweep scenario (object rotating around radar).
     

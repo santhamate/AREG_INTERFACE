@@ -23,6 +23,8 @@ from backend.app.core.osi_utils import check_osi_availability, write_osi_file
 from backend.app.core.scenario_templates import (
     AzimuthSweepParams,
     AzimuthSweepTemplate,
+    ConstantEchoPowerParams,
+    ConstantEchoPowerTemplate,
     ConstantObjectParams,
     ConstantObjectTemplate,
     MultiObjectParams,
@@ -696,6 +698,162 @@ class ScenarioGeneratorService:
                 "error": error_msg,
             }
     
+    def generate_constant_echo_power(
+        self,
+        output_dir: str | Path = "./scenarios",
+        output_filename: str | None = None,
+        sensor_id: int = 1,
+        update_interval_s: float = 0.1,
+        start_range_m: float = 120.0,
+        stop_range_m: float = 20.0,
+        radial_velocity_mps: float = -10.0,
+        ref_rcs_dbsm: float = 10.0,
+        ref_range_m: float = 100.0,
+        azimuth_deg: float = 0.0,
+        elevation_deg: float = 0.0,
+        rcs_min_dbsm: float = -30.0,
+        rcs_max_dbsm: float = 60.0,
+        scenario_name: str = "constant_echo_power",
+    ) -> dict[str, object]:
+        """Generate a constant echo power scenario.
+
+        RCS is compensated per-step to maintain constant received echo power at
+        the radar receiver, following the R⁴ radar range equation:
+
+            RCS(R) [dBsm] = ref_rcs_dbsm + 40 * log10(R / ref_range_m)
+
+        Returns
+        -------
+        dict with keys: ok, file_path, message_count, duration_s, preview, rcs_table, error
+        """
+        if not self.state.osi_available:
+            return {
+                "ok": False,
+                "file_path": None,
+                "message_count": 0,
+                "duration_s": 0.0,
+                "preview": None,
+                "rcs_table": None,
+                "error": self.state.osi_error,
+            }
+
+        try:
+            output_dir = Path(output_dir)
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+            if not output_filename:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                output_filename = f"{scenario_name}_{timestamp}.osi"
+            elif not output_filename.lower().endswith(".osi"):
+                output_filename += ".osi"
+
+            output_path = output_dir / output_filename
+
+            params = ConstantEchoPowerParams(
+                sensor_id=sensor_id,
+                update_interval_s=update_interval_s,
+                start_range_m=start_range_m,
+                stop_range_m=stop_range_m,
+                radial_velocity_mps=radial_velocity_mps,
+                ref_rcs_dbsm=ref_rcs_dbsm,
+                ref_range_m=ref_range_m,
+                azimuth_deg=azimuth_deg,
+                elevation_deg=elevation_deg,
+                rcs_min_dbsm=rcs_min_dbsm,
+                rcs_max_dbsm=rcs_max_dbsm,
+            )
+
+            messages, preview, rcs_table = ConstantEchoPowerTemplate.generate(params)
+
+            if len(messages) == 0:
+                error_msg = "Generated scenario contains no messages"
+                self._log_generation(
+                    template_type="constant_echo_power",
+                    parameters=params.__dict__,
+                    output_filename=str(output_path),
+                    message_count=0,
+                    bytes_written=0,
+                    duration_s=0.0,
+                    success=False,
+                    error=error_msg,
+                )
+                return {
+                    "ok": False,
+                    "file_path": None,
+                    "message_count": 0,
+                    "duration_s": 0.0,
+                    "preview": None,
+                    "rcs_table": None,
+                    "error": error_msg,
+                }
+
+            result = write_osi_file(messages, str(output_path))
+
+            if not result["ok"]:
+                self._log_generation(
+                    template_type="constant_echo_power",
+                    parameters=params.__dict__,
+                    output_filename=str(output_path),
+                    message_count=0,
+                    bytes_written=0,
+                    duration_s=preview.duration_s,
+                    success=False,
+                    error=result["error"],
+                )
+                return {
+                    "ok": False,
+                    "file_path": None,
+                    "message_count": len(messages),
+                    "duration_s": preview.duration_s,
+                    "preview": None,
+                    "rcs_table": None,
+                    "error": result["error"],
+                }
+
+            self.state.last_generated_file = output_path
+            self.state.last_preview = preview
+            self._log_generation(
+                template_type="constant_echo_power",
+                parameters=params.__dict__,
+                output_filename=str(output_path),
+                message_count=len(messages),
+                bytes_written=result["bytes_written"],
+                duration_s=preview.duration_s,
+                success=True,
+            )
+
+            return {
+                "ok": True,
+                "file_path": str(output_path),
+                "message_count": len(messages),
+                "duration_s": preview.duration_s,
+                "preview": self._preview_to_dict(preview),
+                "rcs_table": rcs_table,
+                "error": None,
+            }
+
+        except Exception as ex:
+            error_msg = str(ex)
+            self._log_generation(
+                template_type="constant_echo_power",
+                parameters={},
+                output_filename="",
+                message_count=0,
+                bytes_written=0,
+                duration_s=0.0,
+                success=False,
+                error=error_msg,
+            )
+            return {
+                "ok": False,
+                "file_path": None,
+                "message_count": 0,
+                "duration_s": 0.0,
+                "preview": None,
+                "rcs_table": None,
+                "error": error_msg,
+            }
+
     def get_generation_logs(self, limit: int = 50) -> list[dict[str, object]]:
         """Get generation logs (most recent first)."""
         logs = self.state.generation_logs[-limit:]

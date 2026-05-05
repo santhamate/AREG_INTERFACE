@@ -16,7 +16,7 @@
 import { useEffect, useState } from "react";
 import "./ScenarioGenerator.css";
 
-type TemplateType = "range_sweep" | "constant_object" | "multi_object" | "azimuth_sweep";
+type TemplateType = "range_sweep" | "constant_object" | "multi_object" | "azimuth_sweep" | "constant_echo_power";
 
 interface ScenarioPreview {
   duration_s: number;
@@ -40,6 +40,7 @@ interface GenerationResponse {
   message_count: number;
   duration_s: number;
   preview: ScenarioPreview | null;
+  rcs_table: { range_m: number; rcs_dbsm: number }[] | null;
   error: string | null;
 }
 
@@ -140,6 +141,23 @@ export default function ScenarioGenerator() {
     scenario_name: "azimuth_sweep",
   });
 
+  const [constEchoPowerParams, setConstEchoPowerParams] = useState({
+    output_dir: "./scenarios",
+    output_filename: "constant_echo_power",
+    sensor_id: 1,
+    update_interval_s: 0.1,
+    start_range_m: 120,
+    stop_range_m: 20,
+    radial_velocity_mps: -10,
+    ref_rcs_dbsm: 10,
+    ref_range_m: 100,
+    azimuth_deg: 0,
+    elevation_deg: 0,
+    rcs_min_dbsm: -30,
+    rcs_max_dbsm: 60,
+    scenario_name: "constant_echo_power",
+  });
+
   // Fetch generator status on mount
   useEffect(() => {
     const fetchStatus = async () => {
@@ -187,6 +205,7 @@ export default function ScenarioGenerator() {
         message_count: 0,
         duration_s: 0,
         preview: null,
+        rcs_table: null,
         error: error instanceof Error ? error.message : "Unknown generation error",
       });
     } finally {
@@ -208,6 +227,10 @@ export default function ScenarioGenerator() {
 
   const onGenerateAzimuthSweep = async () => {
     await generateScenario("/generator/azimuth-sweep", azimuthSweepParams);
+  };
+
+  const onGenerateConstantEchoPower = async () => {
+    await generateScenario("/generator/constant-echo-power", constEchoPowerParams);
   };
 
   const updateMultiObject = (index: number, updates: Partial<MultiObject>) => {
@@ -253,6 +276,7 @@ export default function ScenarioGenerator() {
     if (template === "range_sweep") return "Range Sweep";
     if (template === "constant_object") return "Constant Object";
     if (template === "multi_object") return "Multi-Object";
+    if (template === "constant_echo_power") return "Constant Echo Power";
     return "Azimuth Sweep";
   };
 
@@ -294,6 +318,7 @@ export default function ScenarioGenerator() {
                 <option value="constant_object">Constant Object</option>
                 <option value="multi_object">Multi-Object</option>
                 <option value="azimuth_sweep">Azimuth Sweep</option>
+                <option value="constant_echo_power">Constant Echo Power (R⁴)</option>
               </select>
             </div>
             <p className="description">Selected: {prettyTemplateName(selectedTemplate)}</p>
@@ -400,6 +425,31 @@ export default function ScenarioGenerator() {
                 <button className="btn-generate" onClick={onGenerateAzimuthSweep} disabled={isGenerating}>Generate Azimuth Sweep</button>
               </>
             )}
+
+            {selectedTemplate === "constant_echo_power" && (
+              <>
+                <h3>Constant Echo Power Parameters</h3>
+                <p className="description">
+                  RCS is adjusted per frame so the received echo power remains constant: RCS(R) = ref_rcs + 40·log₁₀(R / Rₐảỳ).
+                </p>
+                <div className="param-grid">
+                  <div className="param-group"><label>Sensor ID</label><input type="number" min="1" value={constEchoPowerParams.sensor_id} onChange={(e) => setConstEchoPowerParams({ ...constEchoPowerParams, sensor_id: parseInt(e.target.value, 10) || 1 })} /></div>
+                  <div className="param-group"><label>Update Interval (s)</label><input type="number" min="0.01" step="0.01" value={constEchoPowerParams.update_interval_s} onChange={(e) => setConstEchoPowerParams({ ...constEchoPowerParams, update_interval_s: parseFloat(e.target.value) || 0.01 })} /></div>
+                  <div className="param-group"><label>Start Range (m)</label><input type="number" min="0.1" step="1" value={constEchoPowerParams.start_range_m} onChange={(e) => setConstEchoPowerParams({ ...constEchoPowerParams, start_range_m: parseFloat(e.target.value) || 1 })} /></div>
+                  <div className="param-group"><label>Stop Range (m)</label><input type="number" min="0.1" step="1" value={constEchoPowerParams.stop_range_m} onChange={(e) => setConstEchoPowerParams({ ...constEchoPowerParams, stop_range_m: parseFloat(e.target.value) || 1 })} /></div>
+                  <div className="param-group"><label>Radial Velocity (m/s)</label><input type="number" step="0.1" value={constEchoPowerParams.radial_velocity_mps} onChange={(e) => setConstEchoPowerParams({ ...constEchoPowerParams, radial_velocity_mps: parseFloat(e.target.value) || 0 })} /></div>
+                  <div className="param-group"><label>Reference RCS (dBsm)</label><input type="number" step="1" value={constEchoPowerParams.ref_rcs_dbsm} onChange={(e) => setConstEchoPowerParams({ ...constEchoPowerParams, ref_rcs_dbsm: parseFloat(e.target.value) || 0 })} /></div>
+                  <div className="param-group"><label>Reference Range (m)</label><input type="number" min="0.1" step="1" value={constEchoPowerParams.ref_range_m} onChange={(e) => setConstEchoPowerParams({ ...constEchoPowerParams, ref_range_m: parseFloat(e.target.value) || 1 })} /></div>
+                  <div className="param-group"><label>Azimuth (deg)</label><input type="number" min="-180" max="360" step="1" value={constEchoPowerParams.azimuth_deg} onChange={(e) => setConstEchoPowerParams({ ...constEchoPowerParams, azimuth_deg: parseFloat(e.target.value) || 0 })} /></div>
+                  <div className="param-group"><label>Elevation (deg)</label><input type="number" min="-90" max="90" step="1" value={constEchoPowerParams.elevation_deg} onChange={(e) => setConstEchoPowerParams({ ...constEchoPowerParams, elevation_deg: parseFloat(e.target.value) || 0 })} /></div>
+                  <div className="param-group"><label>RCS Min Clamp (dBsm)</label><input type="number" step="1" value={constEchoPowerParams.rcs_min_dbsm} onChange={(e) => setConstEchoPowerParams({ ...constEchoPowerParams, rcs_min_dbsm: parseFloat(e.target.value) || -30 })} /></div>
+                  <div className="param-group"><label>RCS Max Clamp (dBsm)</label><input type="number" step="1" value={constEchoPowerParams.rcs_max_dbsm} onChange={(e) => setConstEchoPowerParams({ ...constEchoPowerParams, rcs_max_dbsm: parseFloat(e.target.value) || 60 })} /></div>
+                  <div className="param-group"><label>Output Directory</label><input type="text" value={constEchoPowerParams.output_dir} onChange={(e) => setConstEchoPowerParams({ ...constEchoPowerParams, output_dir: e.target.value })} /></div>
+                  <div className="param-group"><label>Output Filename</label><input type="text" value={constEchoPowerParams.output_filename} onChange={(e) => setConstEchoPowerParams({ ...constEchoPowerParams, output_filename: e.target.value })} /></div>
+                </div>
+                <button className="btn-generate" onClick={onGenerateConstantEchoPower} disabled={isGenerating}>Generate Constant Echo Power</button>
+              </>
+            )}
           </div>
         </details>
 
@@ -422,6 +472,19 @@ export default function ScenarioGenerator() {
               </div>
             ) : (
               <p className="description">No preview yet. Generate a scenario to view metadata.</p>
+            )}
+            {generationResult?.rcs_table && generationResult.rcs_table.length > 0 && (
+              <div className="rcs-table-section">
+                <h4>RCS Compensation Table (sampled)</h4>
+                <table className="rcs-table">
+                  <thead><tr><th>Range (m)</th><th>Compensated RCS (dBsm)</th></tr></thead>
+                  <tbody>
+                    {generationResult.rcs_table.map((row, i) => (
+                      <tr key={i}><td>{row.range_m.toFixed(1)}</td><td>{row.rcs_dbsm.toFixed(2)}</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </details>

@@ -15,7 +15,7 @@ type PlaybackState = "unknown" | "not_loaded" | "loaded" | "playing" | "paused" 
 type CommandLogEntry = {
   timestamp: string;
   command: string;
-  command_type: "query" | "write" | "empty";
+  command_type: "query" | "binary-query" | "write" | "action" | "empty";
   ok: boolean;
   response?: string | null;
   message?: string | null;
@@ -27,6 +27,7 @@ const API_BASE = "http://127.0.0.1:8000/api";
 export default function ScenarioPlayer() {
   const [scenarios, setScenarios] = useState<ScenarioFile[]>([]);
   const [selectedScenario, setSelectedScenario] = useState<string | null>(null);
+  const [selectedScenarioPath, setSelectedScenarioPath] = useState<string | null>(null);
   const [playbackState, setPlaybackState] = useState<PlaybackState>("unknown");
   const [isLoading, setIsLoading] = useState(false);
   const [connected, setConnected] = useState(false);
@@ -34,6 +35,9 @@ export default function ScenarioPlayer() {
   const [commandLog, setCommandLog] = useState<CommandLogEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [checkErrorsEnabled, setCheckErrorsEnabled] = useState(false);
+  const [playlistMode, setPlaylistMode] = useState(false);
+  const [playlist, setPlaylist] = useState<string[]>([]);
+  const [currentPlaylistIndex, setCurrentPlaylistIndex] = useState(0);
 
   // Initial load and auto-refresh
   useEffect(() => {
@@ -93,28 +97,36 @@ export default function ScenarioPlayer() {
   };
 
   // Select scenario
-  const selectScenarioHandler = async (name: string) => {
+  const selectScenarioHandler = async (name: string, path?: string) => {
+    const target = path || name;
     setSelectedScenario(name);
+    setSelectedScenarioPath(target);
     setError(null);
     try {
       const response = await fetch(`${API_BASE}/scenario/select`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scenario_name: name, auto_load: false }),
+        body: JSON.stringify({ scenario_name: target, auto_load: false }),
       });
 
       if (!response.ok) throw new Error("Selection failed");
-      await refreshCommandLog();
+      void refreshCommandLog();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Selection failed");
     }
   };
 
   // Load scenario
-  const loadScenarioHandler = async () => {
-    if (!selectedScenario) {
+  const loadScenarioHandler = async (scenarioToLoad?: string) => {
+    const targetScenario = scenarioToLoad ?? selectedScenarioPath ?? selectedScenario;
+    if (!targetScenario) {
       setError("No scenario selected");
       return;
+    }
+
+    if (scenarioToLoad && scenarioToLoad !== selectedScenarioPath && scenarioToLoad !== selectedScenario) {
+      setSelectedScenario(scenarioToLoad);
+      setSelectedScenarioPath(scenarioToLoad);
     }
 
     setIsLoading(true);
@@ -123,7 +135,7 @@ export default function ScenarioPlayer() {
       const response = await fetch(`${API_BASE}/scenario/load`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scenario_name: selectedScenario }),
+        body: JSON.stringify({ scenario_name: targetScenario }),
       });
 
       if (!response.ok) throw new Error("Load failed");
@@ -134,7 +146,7 @@ export default function ScenarioPlayer() {
       } else {
         setError(data.message || "Load failed");
       }
-      await refreshCommandLog();
+      void refreshCommandLog();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Load failed");
     } finally {
@@ -144,13 +156,9 @@ export default function ScenarioPlayer() {
 
   // Play
   const playHandler = async () => {
-    if (!selectedScenario) {
+    if (!selectedScenario && !selectedScenarioPath) {
       setError("No scenario selected");
       return;
-    }
-
-    if (playbackState === "not_loaded" || playbackState === "unknown") {
-      await loadScenarioHandler();
     }
 
     setIsLoading(true);
@@ -169,7 +177,7 @@ export default function ScenarioPlayer() {
       } else {
         setError(data.message || "Play failed");
       }
-      await refreshCommandLog();
+      void refreshCommandLog();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Play failed");
     } finally {
@@ -195,7 +203,7 @@ export default function ScenarioPlayer() {
       } else {
         setError(data.message || "Pause failed");
       }
-      await refreshCommandLog();
+      void refreshCommandLog();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Pause failed");
     } finally {
@@ -221,7 +229,7 @@ export default function ScenarioPlayer() {
       } else {
         setError(data.message || "Stop failed");
       }
-      await refreshCommandLog();
+      void refreshCommandLog();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Stop failed");
     } finally {
@@ -231,6 +239,11 @@ export default function ScenarioPlayer() {
 
   // Restart
   const restartHandler = async () => {
+    if (!selectedScenario && !selectedScenarioPath) {
+      setError("No scenario selected");
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     try {
@@ -247,7 +260,7 @@ export default function ScenarioPlayer() {
       } else {
         setError(data.message || "Restart failed");
       }
-      await refreshCommandLog();
+      void refreshCommandLog();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Restart failed");
     } finally {
@@ -270,7 +283,7 @@ export default function ScenarioPlayer() {
       if (!data.ok) {
         setError(data.message || "Next failed");
       }
-      await refreshCommandLog();
+      void refreshCommandLog();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Next failed");
     }
@@ -291,7 +304,7 @@ export default function ScenarioPlayer() {
       if (!data.ok) {
         setError(data.message || "Previous failed");
       }
-      await refreshCommandLog();
+      void refreshCommandLog();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Previous failed");
     }
@@ -306,6 +319,94 @@ export default function ScenarioPlayer() {
       }
     } catch (err) {
       console.error("Failed to clear log", err);
+    }
+  };
+
+  // Playlist handlers
+  const togglePlaylistMode = () => {
+    setPlaylistMode(!playlistMode);
+    if (playlistMode) {
+      setPlaylist([]);
+      setCurrentPlaylistIndex(0);
+    }
+  };
+
+  const toggleScenarioInPlaylist = (scenarioName: string) => {
+    setPlaylist((prev) => {
+      if (prev.includes(scenarioName)) {
+        return prev.filter((s) => s !== scenarioName);
+      } else {
+        return [...prev, scenarioName];
+      }
+    });
+  };
+
+  const removeFromPlaylist = (index: number) => {
+    setPlaylist((prev) => prev.filter((_, i) => i !== index));
+    if (currentPlaylistIndex >= playlist.length - 1 && currentPlaylistIndex > 0) {
+      setCurrentPlaylistIndex(currentPlaylistIndex - 1);
+    }
+  };
+
+  const movePlaylistItem = (fromIndex: number, toIndex: number) => {
+    const newPlaylist = [...playlist];
+    const [removed] = newPlaylist.splice(fromIndex, 1);
+    newPlaylist.splice(toIndex, 0, removed);
+    setPlaylist(newPlaylist);
+  };
+
+  const clearPlaylist = () => {
+    setPlaylist([]);
+    setCurrentPlaylistIndex(0);
+  };
+
+  const loadAllInPlaylist = async () => {
+    if (playlist.length === 0) return;
+    setIsLoading(true);
+    setError(null);
+    for (const scenario of playlist) {
+      try {
+        // find path for this scenario name
+        const found = scenarios.find((s) => s.name === scenario);
+        const target = found?.path || scenario;
+        const response = await fetch(`${API_BASE}/scenario/load`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ scenario_name: target }),
+        });
+        if (!response.ok) throw new Error(`Load failed for ${scenario}`);
+        const data = await response.json();
+        if (!data.ok) setError(data.message || `Load failed for ${scenario}`);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : `Load failed for ${scenario}`);
+      }
+    }
+    setIsLoading(false);
+    void refreshCommandLog();
+  };
+
+  const playPlaylist = async () => {
+    if (playlist.length === 0) return;
+    setCurrentPlaylistIndex(0);
+    const found = scenarios.find((s) => s.name === playlist[0]);
+    const target = found?.path || playlist[0];
+    setSelectedScenario(playlist[0]);
+    setSelectedScenarioPath(target);
+    await loadScenarioHandler(target);
+    setTimeout(() => void playHandler(), 500);
+  };
+
+  const playNextInPlaylist = async () => {
+    if (!playlistMode || playlist.length === 0) return;
+    
+    if (currentPlaylistIndex < playlist.length - 1) {
+      const nextIndex = currentPlaylistIndex + 1;
+      setCurrentPlaylistIndex(nextIndex);
+      await selectScenarioHandler(playlist[nextIndex]);
+      setTimeout(() => playHandler(), 500);
+    } else {
+      // Playlist finished
+      setPlaybackState("stopped");
     }
   };
 
@@ -361,6 +462,18 @@ export default function ScenarioPlayer() {
             </button>
           </div>
 
+          {/* Playlist Mode Toggle */}
+          <div className="playlist-mode-toggle">
+            <label className="toggle-label">
+              <input
+                type="checkbox"
+                checked={playlistMode}
+                onChange={togglePlaylistMode}
+              />
+              <span className="toggle-text">Playlist Mode</span>
+            </label>
+          </div>
+
           <div className="scenario-list">
             {scenarios.length === 0 ? (
               <div className="empty-state">No scenarios found. Click "Scan" to discover.</div>
@@ -368,11 +481,46 @@ export default function ScenarioPlayer() {
               scenarios.map((scenario) => (
                 <div
                   key={scenario.name}
-                  className={`scenario-item ${selectedScenario === scenario.name ? "selected" : ""}`}
-                  onClick={() => selectScenarioHandler(scenario.name)}
+                  className={`scenario-item ${selectedScenario === scenario.name ? "selected" : ""} ${
+                    playlistMode && playlist.includes(scenario.name) ? "in-playlist" : ""
+                  }`}
                 >
-                  <div className="scenario-name">{scenario.name}</div>
-                  {scenario.extension && <div className="scenario-ext">{scenario.extension}</div>}
+                  {playlistMode ? (
+                    <label className="scenario-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={playlist.includes(scenario.name)}
+                        onChange={() => toggleScenarioInPlaylist(scenario.name)}
+                      />
+                      <div className="scenario-name">{scenario.name}</div>
+                      {scenario.extension && <div className="scenario-ext">{scenario.extension}</div>}
+                    </label>
+                  ) : (
+                    <>
+                      <div className="scenario-row-actions">
+                        <div
+                          className="scenario-name"
+                          onClick={() => selectScenarioHandler(scenario.name, scenario.path)}
+                        >
+                          {scenario.name}
+                        </div>
+                        <button
+                          className="scenario-load-btn"
+                          disabled={isLoading}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedScenario(scenario.name);
+                            setSelectedScenarioPath(scenario.path || scenario.name);
+                            void loadScenarioHandler(scenario.path || scenario.name);
+                          }}
+                          title={connected ? "Load scenario" : "Load to offline player"}
+                        >
+                          Load
+                        </button>
+                      </div>
+                      {scenario.extension && <div className="scenario-ext">{scenario.extension}</div>}
+                    </>
+                  )}
                 </div>
               ))
             )}
@@ -384,57 +532,105 @@ export default function ScenarioPlayer() {
           <div className="scenario-title">{selectedScenario || "No Scenario Selected"}</div>
 
           <div className="player-controls">
-            <button onClick={prevHandler} disabled={!connected} className="control-btn nav-btn" title="Previous">
+            <button onClick={prevHandler} disabled={isLoading} className="control-btn nav-btn" title="Previous">
               ⏮
             </button>
-            <button onClick={playHandler} disabled={!connected || isLoading} className="control-btn play-btn" title="Play">
+            <button onClick={playHandler} disabled={isLoading} className="control-btn play-btn" title="Play">
               ▶
             </button>
-            <button onClick={pauseHandler} disabled={!connected || isLoading} className="control-btn pause-btn" title="Pause">
+            <button onClick={pauseHandler} disabled={isLoading} className="control-btn pause-btn" title="Pause">
               ⏸
             </button>
-            <button onClick={stopHandler} disabled={!connected || isLoading} className="control-btn stop-btn" title="Stop">
+            <button onClick={stopHandler} disabled={isLoading} className="control-btn stop-btn" title="Stop">
               ⏹
             </button>
-            <button onClick={restartHandler} disabled={!connected || isLoading} className="control-btn restart-btn" title="Restart">
+            <button onClick={restartHandler} disabled={isLoading} className="control-btn restart-btn" title="Restart">
               🔄
             </button>
-            <button onClick={nextHandler} disabled={!connected} className="control-btn nav-btn" title="Next">
+            <button onClick={nextHandler} disabled={isLoading} className="control-btn nav-btn" title="Next">
               ⏭
             </button>
           </div>
 
           <div className="quick-actions">
-            <button onClick={loadScenarioHandler} disabled={!connected || !selectedScenario || isLoading} className="action-btn">
-              Load Scenario
+            <button onClick={() => void loadScenarioHandler()} disabled={!selectedScenario || isLoading} className="action-btn">
+              {connected ? "Load Scenario" : "Load to Offline Player"}
             </button>
           </div>
         </div>
 
         {/* Right Panel: Details & Settings */}
         <div className="right-panel">
-          <div className="panel-header">
-            <h3>Settings</h3>
-          </div>
-
-          <div className="settings-group">
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={checkErrorsEnabled}
-                onChange={(e) => setCheckErrorsEnabled(e.target.checked)}
-              />
-              Check errors after write
-            </label>
-          </div>
-
-          {selectedScenario && (
-            <div className="scenario-details">
-              <div className="detail-item">
-                <span className="label">Selected:</span>
-                <span className="value">{selectedScenario}</span>
+          {playlistMode ? (
+            <>
+              <div className="panel-header">
+                <h3>Playlist Queue ({playlist.length})</h3>
               </div>
-            </div>
+
+              {playlist.length === 0 ? (
+                <div className="empty-state">Select scenarios to add to playlist</div>
+              ) : (
+                <>
+                  <div className="playlist-queue">
+                    {playlist.map((scenario, index) => (
+                      <div
+                        key={index}
+                        className={`playlist-item ${index === currentPlaylistIndex ? "current" : ""}`}
+                      >
+                        <div className="playlist-index">{index + 1}</div>
+                        <div className="playlist-name">{scenario}</div>
+                        <button
+                          onClick={() => removeFromPlaylist(index)}
+                          className="remove-btn"
+                          title="Remove"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="playlist-actions">
+                    <button
+                      onClick={() => void loadAllInPlaylist()}
+                      disabled={isLoading || playlist.length === 0}
+                      className="action-btn"
+                    >
+                      Load All
+                    </button>
+                    <button
+                      onClick={() => void playPlaylist()}
+                      disabled={isLoading || playlist.length === 0}
+                      className="action-btn play-btn"
+                    >
+                      ▶ Play Playlist
+                    </button>
+                    <button
+                      onClick={clearPlaylist}
+                      className="action-btn clear-btn"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="panel-header">
+                <h3>Settings</h3>
+              </div>
+
+              <div className="settings-group">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={checkErrorsEnabled}
+                    onChange={(e) => setCheckErrorsEnabled(e.target.checked)}
+                  />
+                  Check errors after write
+                </label>
+              </div>
+            </>
           )}
         </div>
       </div>

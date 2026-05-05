@@ -1,11 +1,41 @@
 import React, { useEffect, useState } from "react";
 import "./Hardcopy.css";
 
+type HardcopyDiagnostics = {
+  file_size: number;
+  payload_length?: number;
+  first_32_bytes_hex: string;
+  ascii_preview: string;
+  detected_type: string;
+  recommendation: string;
+  validation_message?: string;
+  scpi_block?: {
+    length_digits: number;
+    payload_length: number;
+    trailing_bytes: number;
+  };
+};
+
+type HardcopyLogEntry = {
+  timestamp: string;
+  command: string;
+  command_type: string;
+  ok: boolean;
+  response?: string | null;
+  message?: string | null;
+  error?: string | null;
+};
+
 type HardcopyResponse = {
   ok: boolean;
   file_path: string | null;
   file_format: string | null;
   bytes_written: number;
+  payload_bytes: number;
+  detected_type: string | null;
+  validation_ok: boolean;
+  diagnostics: HardcopyDiagnostics | null;
+  log: HardcopyLogEntry[];
   transport: string | null;
   message: string | null;
   error: string | null;
@@ -16,6 +46,17 @@ type LastCaptureInfo = {
   file_path: string | null;
   file_size: number;
   modified_time: number | null;
+  validation_ok?: boolean;
+  detected_type?: string | null;
+  diagnostics?: HardcopyDiagnostics | null;
+};
+
+type HardcopyAnalysis = {
+  ok: boolean;
+  file_path?: string | null;
+  validation_ok?: boolean;
+  diagnostics?: HardcopyDiagnostics | null;
+  error?: string;
 };
 
 const API_BASE = "http://127.0.0.1:8000/api";
@@ -32,6 +73,8 @@ export default function Hardcopy() {
   const [statusMessage, setStatusMessage] = useState("");
   const [lastCapture, setLastCapture] = useState<LastCaptureInfo | null>(null);
   const [connected, setConnected] = useState(false);
+  const [analysis, setAnalysis] = useState<HardcopyAnalysis | null>(null);
+  const [captureLog, setCaptureLog] = useState<HardcopyLogEntry[]>([]);
 
   // Fetch supported formats on mount
   useEffect(() => {
@@ -76,6 +119,14 @@ export default function Hardcopy() {
       if (response.ok) {
         const data = await response.json();
         setLastCapture(data);
+        if (data.diagnostics) {
+          setAnalysis({
+            ok: true,
+            file_path: data.file_path,
+            validation_ok: data.validation_ok,
+            diagnostics: data.diagnostics,
+          });
+        }
       }
     } catch (err) {
       console.error("Failed to fetch last capture info", err);
@@ -117,10 +168,21 @@ export default function Hardcopy() {
       }
 
       const result: HardcopyResponse = await response.json();
+      setCaptureLog(result.log ?? []);
+      if (result.diagnostics) {
+        setAnalysis({
+          ok: true,
+          file_path: result.file_path,
+          validation_ok: result.validation_ok,
+          diagnostics: result.diagnostics,
+        });
+      } else {
+        setAnalysis(null);
+      }
 
       if (result.ok && result.file_path) {
         setStatus("success");
-        setStatusMessage(`Screenshot saved: ${result.file_path} (${result.bytes_written} bytes)`);
+        setStatusMessage(`Screenshot saved: ${result.file_path} (${result.bytes_written} bytes, detected ${result.detected_type ?? "UNKNOWN"})`);
         await refreshLastCapture();
 
         if (openAfterSave) {
@@ -144,6 +206,31 @@ export default function Hardcopy() {
       setStatusMessage(`Error: ${err instanceof Error ? err.message : "Capture failed"}`);
     } finally {
       setIsCapturing(false);
+    }
+  };
+
+  const handleAnalyzeLast = async () => {
+    const filePath = lastCapture?.file_path;
+    if (!filePath) {
+      setStatus("error");
+      setStatusMessage("No capture available to analyze");
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/hardcopy/analyze?file_path=${encodeURIComponent(filePath)}`);
+      const result: HardcopyAnalysis = await response.json();
+      setAnalysis(result);
+      if (result.ok) {
+        setStatus(result.validation_ok ? "success" : "error");
+        setStatusMessage(result.validation_ok ? "Capture analysis: valid image payload" : "Capture analysis: invalid image payload");
+      } else {
+        setStatus("error");
+        setStatusMessage(`Analyze failed: ${result.error || "Unknown error"}`);
+      }
+    } catch (err) {
+      setStatus("error");
+      setStatusMessage(`Analyze failed: ${err instanceof Error ? err.message : "Unknown error"}`);
     }
   };
 
@@ -179,6 +266,12 @@ export default function Hardcopy() {
     if (!timestamp) return "N/A";
     return new Date(timestamp * 1000).toLocaleString();
   };
+
+  const previewUrl = lastCapture?.file_path && lastCapture.validation_ok
+    ? `${API_BASE}/hardcopy/content?file_path=${encodeURIComponent(lastCapture.file_path)}`
+    : null;
+
+  const activeDiagnostics = analysis?.diagnostics ?? lastCapture?.diagnostics ?? null;
 
   return (
     <div className="hardcopy-panel">
@@ -275,6 +368,13 @@ export default function Hardcopy() {
         >
           {isCapturing ? "🔄 Capturing..." : "📸 Capture Screenshot"}
         </button>
+        <button
+          onClick={handleAnalyzeLast}
+          disabled={!lastCapture?.file_path || isCapturing}
+          className="analyze-btn"
+        >
+          Analyze Last Capture
+        </button>
       </div>
 
       <div className="status-area">
@@ -299,9 +399,95 @@ export default function Hardcopy() {
               <span className="label">Time:</span>
               <span className="value">{formatTime(lastCapture.modified_time)}</span>
             </div>
+            <div className="detail-row">
+              <span className="label">Validation:</span>
+              <span className="value">{lastCapture.validation_ok ? "VALID" : "INVALID"}</span>
+            </div>
+            <div className="detail-row">
+              <span className="label">Detected:</span>
+              <span className="value">{lastCapture.detected_type || "UNKNOWN"}</span>
+            </div>
           </div>
         ) : (
           <div className="no-capture">No screenshots captured yet</div>
+        )}
+      </div>
+
+      <div className="hardcopy-result-grid">
+        <div className="hardcopy-preview-card">
+          <h3>Preview</h3>
+          {previewUrl ? (
+            <img src={previewUrl} alt="Last hardcopy capture" className="hardcopy-image-preview" />
+          ) : (
+            <div className="no-preview">No valid image preview available</div>
+          )}
+          {lastCapture?.file_path ? <div className="preview-path">{lastCapture.file_path}</div> : null}
+        </div>
+
+        <div className="hardcopy-diagnostics-card">
+          <h3>Diagnostics</h3>
+          {activeDiagnostics ? (
+            <div className="diagnostics-grid">
+              <div className="detail-row">
+                <span className="label">Detected Type:</span>
+                <span className="value">{activeDiagnostics.detected_type}</span>
+              </div>
+              <div className="detail-row">
+                <span className="label">File Size:</span>
+                <span className="value">{formatBytes(activeDiagnostics.file_size)}</span>
+              </div>
+              <div className="detail-row">
+                <span className="label">Payload Length:</span>
+                <span className="value">{activeDiagnostics.payload_length ?? activeDiagnostics.file_size} bytes</span>
+              </div>
+              <div className="detail-row diagnostics-block-row">
+                <span className="label">First 32 Bytes:</span>
+                <span className="value code-block">{activeDiagnostics.first_32_bytes_hex || "N/A"}</span>
+              </div>
+              <div className="detail-row diagnostics-block-row">
+                <span className="label">ASCII Preview:</span>
+                <span className="value code-block">{activeDiagnostics.ascii_preview || "N/A"}</span>
+              </div>
+              {activeDiagnostics.validation_message ? (
+                <div className="detail-row diagnostics-block-row">
+                  <span className="label">Validation:</span>
+                  <span className="value">{activeDiagnostics.validation_message}</span>
+                </div>
+              ) : null}
+              {activeDiagnostics.scpi_block ? (
+                <div className="detail-row diagnostics-block-row">
+                  <span className="label">SCPI Block:</span>
+                  <span className="value">
+                    digits={activeDiagnostics.scpi_block.length_digits}, payload={activeDiagnostics.scpi_block.payload_length}, trailing={activeDiagnostics.scpi_block.trailing_bytes}
+                  </span>
+                </div>
+              ) : null}
+              <div className="diagnostic-recommendation">{activeDiagnostics.recommendation}</div>
+            </div>
+          ) : (
+            <div className="no-preview">Run a capture or analyze the last file to see diagnostics.</div>
+          )}
+        </div>
+      </div>
+
+      <div className="hardcopy-log-card">
+        <h3>Hardcopy Log</h3>
+        {captureLog.length > 0 ? (
+          <div className="hardcopy-log-list">
+            {captureLog.map((entry, index) => (
+              <div key={`${entry.timestamp}-${index}`} className={`hardcopy-log-entry ${entry.ok ? "ok" : "error"}`}>
+                <div className="hardcopy-log-head">
+                  <span>{entry.timestamp}</span>
+                  <span>{entry.command_type}</span>
+                </div>
+                <div className="hardcopy-log-command">{entry.command}</div>
+                {entry.message ? <div className="hardcopy-log-message">{entry.message}</div> : null}
+                {entry.error ? <div className="hardcopy-log-error">{entry.error}</div> : null}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="no-capture">No hardcopy log entries yet</div>
         )}
       </div>
 
@@ -317,11 +503,13 @@ export default function Hardcopy() {
         <p>
           <strong>SCPI Commands Used:</strong>
           <br />
-          • <code>:HCOPY:IMAGE:FORMAT</code> - Sets the image format (PNG, JPG, BMP)
+          • <code>:HCOPy:DEVice:LANGuage</code> - Sets the image format (PNG, JPG, BMP)
           <br />
-          • <code>:HCOPY:EXECUTE</code> - Triggers the hardcopy operation on the instrument
+          • <code>:HCOPy:FILE:NAME:AUTO:STATe 1</code> - Lets the instrument generate the hardcopy name internally
           <br />
-          • <code>:HCOPY:DATA?</code> - Retrieves the binary image data
+          • <code>:HCOPy:EXECute</code> - Triggers the hardcopy operation on the instrument
+          <br />
+          • <code>:HCOPy:DATA?</code> - Retrieves the definite-length SCPI binary image payload
         </p>
       </div>
     </div>

@@ -15,7 +15,32 @@ class SessionInfo:
     transport: str
 
 
+@dataclass(frozen=True)
+class CommandClassification:
+    command_type: str
+    expect_response: bool
+    is_binary: bool = False
+
+
 class ScpiService:
+    BINARY_QUERY_COMMANDS = {
+        ":HCOPY:DATA?",
+        ":HCOP:DATA?",
+    }
+
+    ACTION_PREFIXES = (
+        ":SOUR:SCEN:PLAY:PLAY",
+        ":SOUR:SCEN:PLAY:PAUS",
+        ":SOUR:SCEN:PLAY:STOP",
+        ":SOUR:SCEN:PLAY:REST",
+        ":SOUR:SCEN:PLAY:NEXT",
+        ":SOUR:SCEN:PLAY:PREV",
+        ":HCOPY:EXEC",
+        ":HCOP:EXEC",
+        "*RST",
+        "*CLS",
+    )
+
     def __init__(self) -> None:
         self.settings = load_settings()
         self.host: str | None = None
@@ -61,7 +86,7 @@ class ScpiService:
         # Auto-detect query vs setter if not explicitly specified
         auto_detect = expect_response is None
         if auto_detect:
-            expect_response = "?" in cleaned
+            expect_response = self.classify_command(cleaned).expect_response
 
         timeout = timeout_ms if timeout_ms is not None else self.settings.command_timeout_ms
         try:
@@ -70,6 +95,26 @@ class ScpiService:
             raise
         except TimeoutError as ex:
             raise ScpiTransportError(f"Command timeout: {cleaned}") from ex
+
+    def classify_command(self, command: str) -> CommandClassification:
+        cleaned = command.strip()
+        if not cleaned:
+            return CommandClassification(command_type="empty", expect_response=False)
+
+        cmd_head = cleaned.split()[0].rstrip(";")
+        cmd_upper = cmd_head.upper()
+        if cmd_upper.endswith("?"):
+            is_binary = cmd_upper in self.BINARY_QUERY_COMMANDS
+            return CommandClassification(
+                command_type="binary-query" if is_binary else "query",
+                expect_response=True,
+                is_binary=is_binary,
+            )
+
+        if cmd_upper.startswith(self.ACTION_PREFIXES):
+            return CommandClassification(command_type="action", expect_response=False)
+
+        return CommandClassification(command_type="write", expect_response=False)
 
     async def execute_with_classification(
         self, command: str, timeout_ms: int | None = None
@@ -102,31 +147,32 @@ class ScpiService:
                 "error": "Command is empty.",
             }
         
-        # A SCPI query can be bare ("*IDN?") or have trailing arguments
-        # (e.g. ':MMEMory:CATalog? "/osi"').  Detect the ? before any space.
-        cmd_head = cleaned.split()[0] if cleaned else ""
-        is_query = cmd_head.endswith("?")
+        classification = self.classify_command(cleaned)
         timeout = timeout_ms if timeout_ms is not None else self.settings.command_timeout_ms
         
         try:
-            if is_query:
+            if classification.command_type in {"query", "binary-query"}:
                 # Query: send and wait for response
-                response = await self.transport.send(cleaned, expect_response=True, timeout_ms=timeout)
+                if classification.is_binary:
+                    response_bytes = await self.transport.query_bytes(cleaned, timeout_ms=timeout)
+                    response = f"<{len(response_bytes)} binary bytes>"
+                else:
+                    response = await self.transport.send(cleaned, expect_response=True, timeout_ms=timeout)
                 return {
                     "ok": True,
                     "command": cleaned,
-                    "command_type": "query",
+                    "command_type": classification.command_type,
                     "response": response if response else "",
                     "message": None,
                     "error": None,
                 }
             else:
-                # Write: send without waiting
+                # Write/action: send without waiting
                 await self.transport.send(cleaned, expect_response=False, timeout_ms=timeout)
                 return {
                     "ok": True,
                     "command": cleaned,
-                    "command_type": "write",
+                    "command_type": classification.command_type,
                     "response": None,
                     "message": "Command sent",
                     "error": None,
@@ -135,17 +181,21 @@ class ScpiService:
             return {
                 "ok": False,
                 "command": cleaned,
-                "command_type": "query" if is_query else "write",
+                "command_type": classification.command_type,
                 "response": None,
                 "message": None,
                 "error": str(ex),
             }
         except TimeoutError as ex:
-            error_msg = f"Command timeout: {cleaned}" if is_query else f"Write timeout: {cleaned}"
+            error_msg = (
+                f"Command timeout: {cleaned}"
+                if classification.expect_response
+                else f"Write timeout: {cleaned}"
+            )
             return {
                 "ok": False,
                 "command": cleaned,
-                "command_type": "query" if is_query else "write",
+                "command_type": classification.command_type,
                 "response": None,
                 "message": None,
                 "error": error_msg,

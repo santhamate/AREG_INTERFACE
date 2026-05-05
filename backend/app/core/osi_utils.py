@@ -55,8 +55,9 @@ class OsiRadarSensor:
         if not OSI3_AVAILABLE:
             raise RuntimeError(
                 "OSI3 Python bindings are not installed. "
-                "Scenario generation requires the osi3 Python package (minimum version 3.5.0). "
-                "Install with: pip install osi3"
+                "The import module name is 'osi3', but there is no PyPI package named 'osi3'. "
+                "Install/build OSI Python bindings using the official setup guide: "
+                "https://opensimulationinterface.github.io/osi-antora-generator/asamosi/latest/interface/setup/setting_up_osi_python.html"
             )
         
         self.sensordata = SensorData()
@@ -284,7 +285,8 @@ def check_osi_availability() -> tuple[bool, str | None]:
     if not OSI3_AVAILABLE:
         return False, (
             "OSI3 Python bindings are not installed. "
-            "Scenario generation requires the osi3 Python package (minimum version 3.5.0). "
-            "Install with: pip install osi3"
+            "The import module name is 'osi3', but there is no PyPI package named 'osi3'. "
+            "Install/build OSI Python bindings using the official setup guide: "
+            "https://opensimulationinterface.github.io/osi-antora-generator/asamosi/latest/interface/setup/setting_up_osi_python.html"
         )
     return True, None

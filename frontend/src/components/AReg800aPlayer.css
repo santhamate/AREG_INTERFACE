@@ -1,0 +1,588 @@
+.areg-player-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.9) 100%);
+  color: #e2e8f0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  overflow: hidden;
+}
+
+/* ================================================================
+   TOP BAR
+   ================================================================ */
+
+.areg-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(15, 23, 42, 0.98);
+  border-bottom: 2px solid rgba(71, 85, 105, 0.5);
+  padding: 12px 20px;
+  height: 60px;
+  flex-shrink: 0;
+  gap: 20px;
+}
+
+.areg-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 150px;
+}
+
+.areg-device-label {
+  font-size: 16px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.areg-topbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.areg-topbar-controls label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #cbd5e1;
+}
+
+.areg-topbar-controls input,
+.areg-topbar-controls select {
+  background: rgba(51, 65, 85, 0.6);
+  border: 1px solid rgba(71, 85, 105, 0.4);
+  color: #e2e8f0;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.areg-topbar-controls input:disabled,
+.areg-topbar-controls select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.areg-topbar-controls input:focus,
+.areg-topbar-controls select:focus {
+  outline: none;
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.1);
+}
+
+.areg-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.areg-btn.connect {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: white;
+}
+
+.areg-btn.connect:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.areg-btn.disconnect {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+}
+
+.areg-btn.disconnect:hover {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.areg-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.areg-connection-badge {
+  font-size: 11px;
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.1);
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(74, 222, 128, 0.3);
+}
+
+.areg-error-message {
+  color: #ef4444;
+  font-size: 11px;
+  background: rgba(239, 68, 68, 0.1);
+  padding: 4px 10px;
+  border-radius: 4px;
+}
+
+/* ================================================================
+   MAIN LAYOUT (Spotify-style)
+   ================================================================ */
+
+.areg-player-layout {
+  display: grid;
+  grid-template-columns: 300px 1fr 280px;
+  gap: 16px;
+  flex: 1;
+  padding: 16px;
+  overflow: hidden;
+}
+
+/* Left Sidebar */
+.areg-sidebar-left {
+  display: flex;
+  flex-direction: column;
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(71, 85, 105, 0.3);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.areg-sidebar-header {
+  padding: 12px 16px;
+  background: linear-gradient(90deg, rgba(96, 165, 250, 0.1) 0%, rgba(167, 139, 250, 0.05) 100%);
+  border-bottom: 1px solid rgba(71, 85, 105, 0.3);
+  font-weight: 600;
+  font-size: 13px;
+  color: #cbd5e1;
+}
+
+.areg-scenario-list-wrapper {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.areg-scenario-list-wrapper .scenario-player {
+  background: transparent;
+  color: inherit;
+}
+
+.areg-scenario-list-wrapper .top-bar {
+  display: none;
+}
+
+.areg-scenario-list-wrapper .main-layout {
+  flex-direction: column;
+  gap: 0;
+}
+
+.areg-scenario-list-wrapper .left-panel {
+  width: 100%;
+  border: none;
+  border-right: none;
+  height: auto;
+  padding: 12px;
+}
+
+.areg-scenario-list-wrapper .center-panel,
+.areg-scenario-list-wrapper .right-panel,
+.areg-scenario-list-wrapper .bottom-panel {
+  display: none;
+}
+
+/* Center Area */
+.areg-center {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+.areg-overview-panel {
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(71, 85, 105, 0.3);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.areg-overview-header {
+  padding: 12px 16px;
+  background: linear-gradient(90deg, rgba(96, 165, 250, 0.1) 0%, rgba(167, 139, 250, 0.05) 100%);
+  border-bottom: 1px solid rgba(71, 85, 105, 0.3);
+  font-weight: 600;
+  font-size: 13px;
+  color: #cbd5e1;
+}
+
+.areg-overview-panel > div:last-child {
+  padding: 16px;
+}
+
+.areg-controls-panel {
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(71, 85, 105, 0.3);
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+}
+
+.areg-controls-header {
+  font-weight: 600;
+  font-size: 12px;
+  color: #cbd5e1;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.areg-player-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.areg-control-btn {
+  width: 50px;
+  height: 50px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(96, 165, 250, 0.2);
+  color: #60a5fa;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid rgba(96, 165, 250, 0.3);
+}
+
+.areg-control-btn:hover {
+  background: rgba(96, 165, 250, 0.3);
+  border-color: #60a5fa;
+  box-shadow: 0 4px 12px rgba(96, 165, 250, 0.2);
+}
+
+.areg-control-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.areg-control-btn.play-btn {
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+  color: white;
+  border-color: #4ade80;
+  font-size: 20px;
+}
+
+.areg-control-btn.play-btn:hover {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  box-shadow: 0 4px 16px rgba(74, 222, 128, 0.4);
+}
+
+.areg-player-msg {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #cbd5e1;
+}
+
+/* Info Panel */
+.areg-info-panel {
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(71, 85, 105, 0.3);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.areg-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.areg-info-item {
+  display: flex;
+  flex-direction: column;
+  background: rgba(51, 65, 85, 0.4);
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(71, 85, 105, 0.3);
+}
+
+.areg-info-label {
+  font-size: 11px;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.areg-info-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #60a5fa;
+  font-family: "Courier New", monospace;
+}
+
+/* Commands Panel */
+.areg-commands-panel {
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(71, 85, 105, 0.3);
+  border-radius: 8px;
+  overflow: visible;
+}
+
+.areg-commands-header {
+  padding: 12px 16px;
+  background: linear-gradient(90deg, rgba(96, 165, 250, 0.1) 0%, rgba(167, 139, 250, 0.05) 100%);
+  border-bottom: 1px solid rgba(71, 85, 105, 0.3);
+  font-weight: 600;
+  font-size: 13px;
+  color: #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.areg-mini-btn {
+  background: none;
+  border: none;
+  color: #cbd5e1;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+  transition: color 0.2s ease;
+}
+
+.areg-mini-btn:hover {
+  color: #e2e8f0;
+}
+
+.areg-commands-content {
+  padding: 16px;
+  max-height: none;
+  overflow: visible;
+}
+
+/* Right Sidebar */
+.areg-sidebar-right {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+.areg-info-box {
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(71, 85, 105, 0.3);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.areg-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  font-size: 12px;
+  border-bottom: 1px solid rgba(71, 85, 105, 0.2);
+}
+
+.areg-info-row:last-child {
+  border-bottom: none;
+}
+
+.areg-info-row .label {
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.areg-info-row .value {
+  color: #cbd5e1;
+  font-family: "Courier New", monospace;
+  text-align: right;
+}
+
+.status-badge {
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status-badge.online {
+  background: rgba(74, 222, 128, 0.2);
+  color: #4ade80;
+}
+
+.status-badge.offline {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.areg-sidebar-section {
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(71, 85, 105, 0.3);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.areg-sidebar-subheader {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 0 4px;
+}
+
+.areg-action-btn {
+  padding: 8px 12px;
+  background: rgba(96, 165, 250, 0.15);
+  border: 1px solid rgba(96, 165, 250, 0.3);
+  color: #60a5fa;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.areg-action-btn:hover {
+  background: rgba(96, 165, 250, 0.25);
+  border-color: #60a5fa;
+}
+
+/* Scrollbar Styling */
+.areg-center::-webkit-scrollbar,
+.areg-sidebar-left::-webkit-scrollbar,
+.areg-sidebar-right::-webkit-scrollbar,
+.areg-commands-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.areg-center::-webkit-scrollbar-track,
+.areg-sidebar-left::-webkit-scrollbar-track,
+.areg-sidebar-right::-webkit-scrollbar-track,
+.areg-commands-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.areg-center::-webkit-scrollbar-thumb,
+.areg-sidebar-left::-webkit-scrollbar-thumb,
+.areg-sidebar-right::-webkit-scrollbar-thumb,
+.areg-commands-content::-webkit-scrollbar-thumb {
+  background: rgba(71, 85, 105, 0.4);
+  border-radius: 3px;
+}
+
+.areg-center::-webkit-scrollbar-thumb:hover,
+.areg-sidebar-left::-webkit-scrollbar-thumb:hover,
+.areg-sidebar-right::-webkit-scrollbar-thumb:hover,
+.areg-commands-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(71, 85, 105, 0.6);
+}
+
+/* Responsive Design */
+@media (max-width: 1400px) {
+  .areg-player-layout {
+    grid-template-columns: 250px 1fr 250px;
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .areg-player-buttons {
+    gap: 8px;
+  }
+
+  .areg-control-btn {
+    width: 44px;
+    height: 44px;
+    font-size: 16px;
+  }
+
+  .areg-control-btn.play-btn {
+    width: 52px;
+    height: 52px;
+    font-size: 18px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .areg-player-layout {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .areg-sidebar-right {
+    display: none;
+  }
+
+  .areg-info-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .areg-player-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .areg-sidebar-left {
+    display: none;
+  }
+
+  .areg-topbar {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 12px;
+    height: auto;
+  }
+
+  .areg-topbar-controls {
+    flex-basis: 100%;
+    width: 100%;
+    gap: 6px;
+    font-size: 10px;
+  }
+
+  .areg-topbar-controls label {
+    flex: 1;
+    min-width: 80px;
+  }
+
+  .areg-info-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .areg-control-btn {
+    width: 40px;
+    height: 40px;
+    font-size: 14px;
+  }
+
+  .areg-control-btn.play-btn {
+    width: 48px;
+    height: 48px;
+    font-size: 16px;
+  }
+}

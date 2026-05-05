@@ -115,7 +115,7 @@ class CommandLogEntry(BaseModel):
 
     timestamp: str = Field(description="ISO timestamp")
     command: str = Field(description="SCPI command")
-    command_type: Literal["query", "write", "empty"] = Field(description="Command type")
+    command_type: Literal["query", "binary-query", "write", "action", "empty"] = Field(description="Command type")
     ok: bool = Field(description="Command succeeded")
     response: str | None = Field(default=None, description="Query response if applicable")
     message: str | None = Field(default=None, description="Success message")

@@ -190,6 +190,28 @@
   transition: all 0.2s;
 }
 
+.analyze-btn {
+  padding: 14px 20px;
+  border: 1px solid #475569;
+  border-radius: 8px;
+  background: #1e293b;
+  color: #e2e8f0;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.analyze-btn:hover:not(:disabled) {
+  border-color: #60a5fa;
+  color: #dbeafe;
+}
+
+.analyze-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .capture-btn:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 8px 16px rgba(59, 130, 246, 0.3);
@@ -262,6 +284,138 @@
   padding: 8px;
 }
 
+.hardcopy-result-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.hardcopy-preview-card,
+.hardcopy-diagnostics-card,
+.hardcopy-log-card {
+  background: #334155;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.hardcopy-preview-card h3,
+.hardcopy-diagnostics-card h3,
+.hardcopy-log-card h3 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.hardcopy-image-preview {
+  width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #0f172a;
+  border: 1px solid #475569;
+}
+
+.no-preview {
+  min-height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #94a3b8;
+  background: #0f172a;
+  border-radius: 8px;
+  border: 1px dashed #475569;
+  padding: 16px;
+}
+
+.preview-path {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #cbd5e1;
+  word-break: break-all;
+}
+
+.diagnostics-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.diagnostics-block-row {
+  align-items: flex-start;
+}
+
+.code-block {
+  font-family: "Consolas", "Courier New", monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.diagnostic-recommendation {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #fde68a;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.hardcopy-log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 280px;
+  overflow: auto;
+}
+
+.hardcopy-log-entry {
+  border-radius: 8px;
+  padding: 12px;
+  background: #0f172a;
+  border: 1px solid #475569;
+}
+
+.hardcopy-log-entry.ok {
+  border-color: rgba(16, 185, 129, 0.45);
+}
+
+.hardcopy-log-entry.error {
+  border-color: rgba(239, 68, 68, 0.45);
+}
+
+.hardcopy-log-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: #94a3b8;
+  margin-bottom: 6px;
+}
+
+.hardcopy-log-command {
+  font-family: "Consolas", "Courier New", monospace;
+  font-size: 13px;
+  color: #e2e8f0;
+  word-break: break-all;
+}
+
+.hardcopy-log-message {
+  margin-top: 6px;
+  color: #bfdbfe;
+  font-size: 12px;
+}
+
+.hardcopy-log-error {
+  margin-top: 6px;
+  color: #fca5a5;
+  font-size: 12px;
+}
+
 /* Info Box */
 .hardcopy-info {
   background: rgba(59, 130, 246, 0.1);
@@ -313,9 +467,17 @@
     grid-template-columns: 1fr;
   }
 
+  .hardcopy-result-grid {
+    grid-template-columns: 1fr;
+  }
+
   .checkbox-group {
     flex-direction: column;
     gap: 12px;
+  }
+
+  .hardcopy-actions {
+    flex-direction: column;
   }
 
   .capture-btn {

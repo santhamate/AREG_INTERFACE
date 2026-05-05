@@ -1,0 +1,1929 @@
+source:
+  device: AREG800A
+  warning: Commands are auto-extracted from manuals. Verify before use.
+syntax_notes:
+  placeholders:
+    VALUE: Numeric value
+    FREQ: Frequency in Hz
+    POWER: Power in dBm
+    FILE: File path
+    STATE: ON|OFF|0|1
+command_groups:
+  ADD:
+    commands:
+    - command: :ADD
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ADD
+  ADDRESS:
+    commands:
+    - command: :ADDRESS
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ADDRESS
+  ADJUST:
+    commands:
+    - command: :ADJUST
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ADJUST
+    - command: :ADJUST:ALL
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ADJUST:ALL
+    - command: :ADJUST:LEVEL
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ADJUST:LEVEL
+    - command: :ADJUST:LEVEL:DIGHEADROOM
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ADJUST:LEVEL:DIGHEADROOM
+    - command: :ADJUST:LEVEL:OTIME
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ADJUST:LEVEL:OTIME
+    - command: :ADJUST:VALUE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ADJUST:VALUE
+  ALIAS:
+    commands:
+    - command: :ALIAS
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ALIAS
+  ALL:
+    commands:
+    - command: :ALL
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ALL
+    - command: :ALL:DATE?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ALL:DATE?
+    - command: :ALL:INFORMATION?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ALL:INFORMATION?
+    - command: :ALL:RESULT?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ALL:RESULT?
+    - command: :ALL:START
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ALL:START
+    - command: :ALL:TEMP?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ALL:TEMP?
+    - command: :ALL:TIME?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ALL:TIME?
+  ANGLE:
+    commands:
+    - command: :ANGLE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ANGLE
+    - command: :ANGLE:HORIZONTAL
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ANGLE:HORIZONTAL
+  ANTENNA:
+    commands:
+    - command: :ANTENNA
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ANTENNA
+    - command: :ANTENNA:CUSTOM
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ANTENNA:CUSTOM
+    - command: :ANTENNA:CUSTOM:EXPORT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ANTENNA:CUSTOM:EXPORT
+    - command: :ANTENNA:CUSTOM:FLIST
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ANTENNA:CUSTOM:FLIST
+    - command: :ANTENNA:CUSTOM:FPOINTS
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ANTENNA:CUSTOM:FPOINTS
+    - command: :ANTENNA:CUSTOM:IMPORT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ANTENNA:CUSTOM:IMPORT
+    - command: :ANTENNA:GAIN:RX
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ANTENNA:GAIN:RX
+    - command: :ANTENNA:GAIN:TX
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ANTENNA:GAIN:TX
+  APERTURE:
+    commands:
+    - command: :APERTURE:DEFAULT:STATE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :APERTURE:DEFAULT:STATE
+    - command: :APERTURE:TIME
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :APERTURE:TIME
+  AREGENERATOR:
+    commands:
+    - command: :AREGENERATOR:CHANNEL
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:CHANNEL
+    - command: :AREGENERATOR:CHANNEL:BW
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:CHANNEL:BW
+    - command: :AREGENERATOR:CHANNEL:CATALOG?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:CHANNEL:CATALOG?
+    - command: :AREGENERATOR:CHANNEL:CONDITION
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:CHANNEL:CONDITION
+    - command: :AREGENERATOR:CHANNEL:CONDITION:INFO
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:CHANNEL:CONDITION:INFO
+    - command: :AREGENERATOR:CHANNEL:ID?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:CHANNEL:ID?
+    - command: :AREGENERATOR:CHANNEL:INPUT:NOMGAIN
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:CHANNEL:INPUT:NOMGAIN
+    - command: :AREGENERATOR:CHANNEL:INPUT:RELLEVEL?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:CHANNEL:INPUT:RELLEVEL?
+    - command: :AREGENERATOR:CHANNEL:NAME
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:CHANNEL:NAME
+    - command: :AREGENERATOR:CHANNEL:OPTIMIZATION:MODE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:CHANNEL:OPTIMIZATION:MODE
+    - command: :AREGENERATOR:CHANNEL:SYSTEM:ALIGNMENT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:CHANNEL:SYSTEM:ALIGNMENT
+    - command: :AREGENERATOR:DLOGGING
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:DLOGGING
+    - command: :AREGENERATOR:DLOGGING:CLEAR
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:DLOGGING:CLEAR
+    - command: :AREGENERATOR:DLOGGING:DATA
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:DLOGGING:DATA
+    - command: :AREGENERATOR:DLOGGING:LEVEL
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:DLOGGING:LEVEL
+    - command: :AREGENERATOR:DLOGGING:NERROR?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:DLOGGING:NERROR?
+    - command: :AREGENERATOR:DLOGGING:NINFO?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:DLOGGING:NINFO?
+    - command: :AREGENERATOR:DLOGGING:NWARNING?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:DLOGGING:NWARNING?
+    - command: :AREGENERATOR:DLOGGING:SAVE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:DLOGGING:SAVE
+    - command: :AREGENERATOR:EFRONTEND:FE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:EFRONTEND:FE
+    - command: :AREGENERATOR:EXTERNAL:REMOTE:ADD
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:EXTERNAL:REMOTE:ADD
+    - command: :AREGENERATOR:EXTERNAL:REMOTE:CLEAN
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:EXTERNAL:REMOTE:CLEAN
+    - command: :AREGENERATOR:EXTERNAL:REMOTE:DELETE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:EXTERNAL:REMOTE:DELETE
+    - command: :AREGENERATOR:EXTERNAL:REMOTE:EDIT:ALIAS
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:EXTERNAL:REMOTE:EDIT:ALIAS
+    - command: :AREGENERATOR:EXTERNAL:REMOTE:EDIT:APPLY
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:EXTERNAL:REMOTE:EDIT:APPLY
+    - command: :AREGENERATOR:EXTERNAL:REMOTE:EDIT:DEVICE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:EXTERNAL:REMOTE:EDIT:DEVICE
+    - command: :AREGENERATOR:EXTERNAL:REMOTE:EDIT:HOSTNAME
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:EXTERNAL:REMOTE:EDIT:HOSTNAME
+    - command: :AREGENERATOR:EXTERNAL:REMOTE:EDIT:ISELECT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:EXTERNAL:REMOTE:EDIT:ISELECT
+    - command: :AREGENERATOR:EXTERNAL:REMOTE:LIST?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:EXTERNAL:REMOTE:LIST?
+    - command: :AREGENERATOR:EXTERNAL:REMOTE:RENAME
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:EXTERNAL:REMOTE:RENAME
+    - command: :AREGENERATOR:FRONTEND
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:FRONTEND
+    - command: :AREGENERATOR:FRONTEND:ANTENNA:CUSTOM:IMPORT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:FRONTEND:ANTENNA:CUSTOM:IMPORT
+    - command: :AREGENERATOR:FRONTEND:ANTENNA:CUSTOM:IMPORT:PREDEFINED
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:FRONTEND:ANTENNA:CUSTOM:IMPORT:PREDEFINED
+    - command: :AREGENERATOR:FRONTEND:ANTENNA:CUSTOM:IMPORT:PREDEFINED:CATALOG?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:FRONTEND:ANTENNA:CUSTOM:IMPORT:PREDEFINED:CATALOG?
+    - command: :AREGENERATOR:FRONTEND:CFE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:FRONTEND:CFE
+    - command: :AREGENERATOR:FRONTEND:FE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:FRONTEND:FE
+    - command: :AREGENERATOR:FRONTEND:LAST:QAT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:FRONTEND:LAST:QAT
+    - command: :AREGENERATOR:FRONTEND:QAT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:FRONTEND:QAT
+    - command: :AREGENERATOR:FRONTEND:TRX
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:FRONTEND:TRX
+    - command: :AREGENERATOR:HIL:RATE?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:HIL:RATE?
+    - command: :AREGENERATOR:HIL:RECEIVED
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:HIL:RECEIVED
+    - command: :AREGENERATOR:LAST:SENSOR?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:LAST:SENSOR?
+    - command: :AREGENERATOR:MAPPING
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:MAPPING
+    - command: :AREGENERATOR:MARKER:OBJECT:DELAY
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:MARKER:OBJECT:DELAY
+    - command: :AREGENERATOR:MARKER:OBJECT:ONTIME
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:MARKER:OBJECT:ONTIME
+    - command: :AREGENERATOR:MARKER:OBJECT:SOURCE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:MARKER:OBJECT:SOURCE
+    - command: :AREGENERATOR:MEASUREMENT:KEEPSETTINGS
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:MEASUREMENT:KEEPSETTINGS
+    - command: :AREGENERATOR:OBJECT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:OBJECT
+    - command: :AREGENERATOR:OBJECT:ALL
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:OBJECT:ALL
+    - command: :AREGENERATOR:OBJECTS:INVALID:CATALOG?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:OBJECTS:INVALID:CATALOG?
+    - command: :AREGENERATOR:OBJECTS:INVALID?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:OBJECTS:INVALID?
+    - command: :AREGENERATOR:OBJECTS:VALID
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:OBJECTS:VALID
+    - command: :AREGENERATOR:OBJECTS:VALID:CATALOG?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:OBJECTS:VALID:CATALOG?
+    - command: :AREGENERATOR:OMONITORING
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:OMONITORING
+    - command: :AREGENERATOR:OMONITORING:HOSTNAME
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:OMONITORING:HOSTNAME
+    - command: :AREGENERATOR:OMONITORING:PORT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:OMONITORING:PORT
+    - command: :AREGENERATOR:OSETUP:APPLY
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:OSETUP:APPLY
+    - command: :AREGENERATOR:OSETUP:BW
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:OSETUP:BW
+    - command: :AREGENERATOR:OSETUP:BW:APPLY
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:OSETUP:BW:APPLY
+    - command: :AREGENERATOR:OSETUP:CONFIG
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:OSETUP:CONFIG
+    - command: :AREGENERATOR:OSETUP:HIL:UPD
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:OSETUP:HIL:UPD
+    - command: :AREGENERATOR:OSETUP:HOSTNAME
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:OSETUP:HOSTNAME
+    - command: :AREGENERATOR:OSETUP:IPADDRESS
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:OSETUP:IPADDRESS
+    - command: :AREGENERATOR:OSETUP:MODE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:OSETUP:MODE
+    - command: :AREGENERATOR:OSETUP:MULTIINSTRUMENT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:OSETUP:MULTIINSTRUMENT
+    - command: :AREGENERATOR:OSETUP:MULTIINSTRUMENT:CONNECT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:OSETUP:MULTIINSTRUMENT:CONNECT
+    - command: :AREGENERATOR:OSETUP:MULTIINSTRUMENT:MODE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:OSETUP:MULTIINSTRUMENT:MODE
+    - command: :AREGENERATOR:OSETUP:MULTIINSTRUMENT:SECONDARY
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:OSETUP:MULTIINSTRUMENT:SECONDARY
+    - command: :AREGENERATOR:OSETUP:MULTIINSTRUMENT:SECONDARY:ADD
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:OSETUP:MULTIINSTRUMENT:SECONDARY:ADD
+    - command: :AREGENERATOR:OSETUP:PORT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:OSETUP:PORT
+    - command: :AREGENERATOR:OSETUP:PROTOCOL
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:OSETUP:PROTOCOL
+    - command: :AREGENERATOR:OSETUP:REFERENCE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:OSETUP:REFERENCE
+    - command: :AREGENERATOR:OSETUP:SOURCE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:OSETUP:SOURCE
+    - command: :AREGENERATOR:OSETUP:SWUNIT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:OSETUP:SWUNIT
+    - command: :AREGENERATOR:OSETUP:TBASE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:OSETUP:TBASE
+    - command: :AREGENERATOR:RADAR:LSENSITIVITY
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:RADAR:LSENSITIVITY
+    - command: :AREGENERATOR:RADAR:POWER:INDICATOR?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:RADAR:POWER:INDICATOR?
+    - command: :AREGENERATOR:SCENARIO:FILE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:SCENARIO:FILE
+    - command: :AREGENERATOR:SCENARIO:FILE:CATALOG
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:SCENARIO:FILE:CATALOG
+    - command: :AREGENERATOR:SCENARIO:PAUSE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:SCENARIO:PAUSE
+    - command: :AREGENERATOR:SCENARIO:POSITION:ACTUAL
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:SCENARIO:POSITION:ACTUAL
+    - command: :AREGENERATOR:SCENARIO:POSITION:START
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:SCENARIO:POSITION:START
+    - command: :AREGENERATOR:SCENARIO:POSITION:STOP
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:SCENARIO:POSITION:STOP
+    - command: :AREGENERATOR:SCENARIO:PROGRESS
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:SCENARIO:PROGRESS
+    - command: :AREGENERATOR:SCENARIO:PROGRESS?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:SCENARIO:PROGRESS?
+    - command: :AREGENERATOR:SCENARIO:REPLAY
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:SCENARIO:REPLAY
+    - command: :AREGENERATOR:SCENARIO:REPLAY:LOOP
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:SCENARIO:REPLAY:LOOP
+    - command: :AREGENERATOR:SCENARIO:RESET
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:SCENARIO:RESET
+    - command: :AREGENERATOR:SCENARIO:START
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:SCENARIO:START
+    - command: :AREGENERATOR:SCENARIO:STATUS
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:SCENARIO:STATUS
+    - command: :AREGENERATOR:SCENARIO:STOP
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:SCENARIO:STOP
+    - command: :AREGENERATOR:SENSOR
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:SENSOR
+    - command: :AREGENERATOR:SWUNIT:CABLECORR:CONNECTOR
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:SWUNIT:CABLECORR:CONNECTOR
+    - command: :AREGENERATOR:SWUNIT:CONNECT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:SWUNIT:CONNECT
+    - command: :AREGENERATOR:SWUNIT:HOSTNAME
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:SWUNIT:HOSTNAME
+    - command: :AREGENERATOR:SWUNIT:MAPPING
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:SWUNIT:MAPPING
+    - command: :AREGENERATOR:SWUNIT:RELAYS:CATALOG?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:SWUNIT:RELAYS:CATALOG?
+    - command: :AREGENERATOR:SWUNIT:RX
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:SWUNIT:RX
+    - command: :AREGENERATOR:SWUNIT:STATUS?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:SWUNIT:STATUS?
+    - command: :AREGENERATOR:SWUNIT:TX
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:SWUNIT:TX
+    - command: :AREGENERATOR:UNITS:ANGLE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:UNITS:ANGLE
+    - command: :AREGENERATOR:UNITS:C
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:UNITS:C
+    - command: :AREGENERATOR:UNITS:DOPPLER
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:UNITS:DOPPLER
+    - command: :AREGENERATOR:UNITS:KCONSTANT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:UNITS:KCONSTANT
+    - command: :AREGENERATOR:UNITS:RANGE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:UNITS:RANGE
+    - command: :AREGENERATOR:UNITS:RCS
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:UNITS:RCS
+    - command: :AREGENERATOR:UNITS:SHIFT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:UNITS:SHIFT
+    - command: :AREGENERATOR:UNITS:SPEED
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AREGENERATOR:UNITS:SPEED
+  ATS:
+    commands:
+    - command: :ATS
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ATS
+  ATTENUATION:
+    commands:
+    - command: :ATTENUATION
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ATTENUATION
+  AUTO:
+    commands:
+    - command: :AUTO
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AUTO
+    - command: :AUTO:DIRECTORY
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AUTO:DIRECTORY
+    - command: :AUTO:DIRECTORY:CLEAR
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AUTO:DIRECTORY:CLEAR
+    - command: :AUTO:FILE?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AUTO:FILE?
+    - command: :AUTO:STATE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AUTO:STATE
+  AUTO?:
+    commands:
+    - command: :AUTO?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :AUTO?
+  BB:
+    commands:
+    - command: :BB:GRAPHICS:ADD
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :BB:GRAPHICS:ADD
+    - command: :BB:GRAPHICS:CLOSE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :BB:GRAPHICS:CLOSE
+    - command: :BB:GRAPHICS:FFTFSCALE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :BB:GRAPHICS:FFTFSCALE
+    - command: :BB:GRAPHICS:FFTLEN
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :BB:GRAPHICS:FFTLEN
+    - command: :BB:GRAPHICS:MODE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :BB:GRAPHICS:MODE
+    - command: :BB:GRAPHICS:SOURCE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :BB:GRAPHICS:SOURCE
+    - command: :BB:GRAPHICS:SRATE:MODE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :BB:GRAPHICS:SRATE:MODE
+    - command: :BB:GRAPHICS:SRATE:USER
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :BB:GRAPHICS:SRATE:USER
+    - command: :BB:GRAPHICS:TRIGGER:SOURCE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :BB:GRAPHICS:TRIGGER:SOURCE
+  BGINFO:
+    commands:
+    - command: :BGINFO:CATALOG?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :BGINFO:CATALOG?
+  BGINFO?:
+    commands:
+    - command: :BGINFO?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :BGINFO?
+  BW:
+    commands:
+    - command: :BW
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :BW
+  CABLECORR:
+    commands:
+    - command: :CABLECORR
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :CABLECORR
+    - command: :CABLECORR:CONNECTOR
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :CABLECORR:CONNECTOR
+  CALIBRATION:
+    commands:
+    - command: :CALIBRATION
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :CALIBRATION
+    - command: :CALIBRATION:ALL
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :CALIBRATION:ALL
+    - command: :CALIBRATION:DATA:EXPORT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :CALIBRATION:DATA:EXPORT
+    - command: :CALIBRATION:DATA:FACTORY:DATE?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :CALIBRATION:DATA:FACTORY:DATE?
+    - command: :CALIBRATION:DELAY
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :CALIBRATION:DELAY
+    - command: :CALIBRATION:DELAY:MINUTES
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :CALIBRATION:DELAY:MINUTES
+    - command: :CALIBRATION:DELAY:SHUTDOWN
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :CALIBRATION:DELAY:SHUTDOWN
+  CENTER:
+    commands:
+    - command: :CENTER
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :CENTER
+  CFACTOR:
+    commands:
+    - command: :CFACTOR
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :CFACTOR
+  CHANNELS?:
+    commands:
+    - command: :CHANNELS?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :CHANNELS?
+  COMMON:
+    commands:
+    - command: :COMMON
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :COMMON
+  CONFIG?:
+    commands:
+    - command: :CONFIG?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :CONFIG?
+  CONNECT:
+    commands:
+    - command: :CONNECT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :CONNECT
+  CONNECTION:
+    commands:
+    - command: :CONNECTION
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :CONNECTION
+  CONTINUEONERROR:
+    commands:
+    - command: :CONTINUEONERROR
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :CONTINUEONERROR
+  CONTINUOUS:
+    commands:
+    - command: :CONTINUOUS
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :CONTINUOUS
+  CORRECTION:
+    commands:
+    - command: :CORRECTION:SPDEVICE:LIST?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :CORRECTION:SPDEVICE:LIST?
+    - command: :CORRECTION:SPDEVICE:SELECT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :CORRECTION:SPDEVICE:SELECT
+    - command: :CORRECTION:SPDEVICE:STATE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :CORRECTION:SPDEVICE:STATE
+  COUNT?:
+    commands:
+    - command: :COUNT?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :COUNT?
+  CW:
+    commands:
+    - command: :CW
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :CW
+  DATA:
+    commands:
+    - command: :DATA
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :DATA
+  DAY:
+    commands:
+    - command: :DAY:STATE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :DAY:STATE
+  DEVICE:
+    commands:
+    - command: :DEVICE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :DEVICE
+    - command: :DEVICE:PRESET
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :DEVICE:PRESET
+  DIAGNOSTIC:
+    commands:
+    - command: :DIAGNOSTIC
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :DIAGNOSTIC
+    - command: :DIAGNOSTIC:INFO:OTIME?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :DIAGNOSTIC:INFO:OTIME?
+    - command: :DIAGNOSTIC:INFO:POCOUNT?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :DIAGNOSTIC:INFO:POCOUNT?
+  DIRECTION:
+    commands:
+    - command: :DIRECTION
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :DIRECTION
+  DISPLAY:
+    commands:
+    - command: :DISPLAY
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :DISPLAY
+    - command: :DISPLAY:ANNOTATION
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :DISPLAY:ANNOTATION
+    - command: :DISPLAY:ANNOTATION:AMPLITUDE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :DISPLAY:ANNOTATION:AMPLITUDE
+    - command: :DISPLAY:ANNOTATION:FREQUENCY
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :DISPLAY:ANNOTATION:FREQUENCY
+    - command: :DISPLAY:BRIGHTNESS
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :DISPLAY:BRIGHTNESS
+    - command: :DISPLAY:BUTTON:BRIGHTNESS
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :DISPLAY:BUTTON:BRIGHTNESS
+    - command: :DISPLAY:DIALOG:CLOSE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :DISPLAY:DIALOG:CLOSE
+    - command: :DISPLAY:DIALOG:CLOSE:ALL
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :DISPLAY:DIALOG:CLOSE:ALL
+    - command: :DISPLAY:DIALOG:ID?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :DISPLAY:DIALOG:ID?
+    - command: :DISPLAY:DIALOG:OPEN
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :DISPLAY:DIALOG:OPEN
+    - command: :DISPLAY:PERMANENT:PRIORITY
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :DISPLAY:PERMANENT:PRIORITY
+    - command: :DISPLAY:PERMANENT:STATE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :DISPLAY:PERMANENT:STATE
+    - command: :DISPLAY:PSAVE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :DISPLAY:PSAVE
+    - command: :DISPLAY:PSAVE:HOLDOFF
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :DISPLAY:PSAVE:HOLDOFF
+    - command: :DISPLAY:UPDATE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :DISPLAY:UPDATE
+  DISTANCE:
+    commands:
+    - command: :DISTANCE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :DISTANCE
+  DNS:
+    commands:
+    - command: :DNS
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :DNS
+  DOMAIN:
+    commands:
+    - command: :DOMAIN
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :DOMAIN
+  DOPPLER:
+    commands:
+    - command: :DOPPLER
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :DOPPLER
+    - command: :DOPPLER:FREQUENCY
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :DOPPLER:FREQUENCY
+  DYNAMIC:
+    commands:
+    - command: :DYNAMIC:ID
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :DYNAMIC:ID
+  EIRP:
+    commands:
+    - command: :EIRP:PORT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :EIRP:PORT
+    - command: :EIRP:SENSOR
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :EIRP:SENSOR
+  EIRP?:
+    commands:
+    - command: :EIRP?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :EIRP?
+  EVENT:
+    commands:
+    - command: :EVENT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :EVENT
+  EXCLUSIVE:
+    commands:
+    - command: :EXCLUSIVE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :EXCLUSIVE
+  EXECUTE:
+    commands:
+    - command: :EXECUTE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :EXECUTE
+  FE:
+    commands:
+    - command: :FE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :FE
+  FILE:
+    commands:
+    - command: :FILE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :FILE
+  FILTER:
+    commands:
+    - command: :FILTER
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :FILTER
+    - command: :FILTER:LENGTH
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :FILTER:LENGTH
+    - command: :FILTER:LENGTH:AUTO?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :FILTER:LENGTH:AUTO?
+    - command: :FILTER:NSRATIO
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :FILTER:NSRATIO
+    - command: :FILTER:NSRATIO:MTIME
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :FILTER:NSRATIO:MTIME
+    - command: :FILTER:SONCE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :FILTER:SONCE
+    - command: :FILTER:TYPE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :FILTER:TYPE
+  FORM:
+    commands:
+    - command: :FORM
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :FORM
+    - command: :FORM:BORD
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :FORM:BORD
+    - command: :FORM:SREG
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :FORM:SREG
+  FORMAT:
+    commands:
+    - command: :FORMAT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :FORMAT
+    - command: :FORMAT:BORDER
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :FORMAT:BORDER
+    - command: :FORMAT:SREGISTER
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :FORMAT:SREGISTER
+  FPANEL:
+    commands:
+    - command: :FPANEL:KEYBOARD:LAYOUT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :FPANEL:KEYBOARD:LAYOUT
+  FREQ:
+    commands:
+    - command: :FREQ:STAR
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :FREQ:STAR
+    - command: :FREQ:STAR?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :FREQ:STAR?
+  FREQUENCY:
+    commands:
+    - command: :FREQUENCY
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :FREQUENCY
+  GATEWAY:
+    commands:
+    - command: :GATEWAY
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :GATEWAY
+  HCOP:
+    commands:
+    - command: :HCOP:IMM
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :HCOP:IMM
+    - command: :HCOP:ITEM
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :HCOP:ITEM
+  HCOPY:
+    commands:
+    - command: :HCOPY
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :HCOPY
+    - command: :HCOPY:DATA
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :HCOPY:DATA
+    - command: :HCOPY:DATA?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :HCOPY:DATA?
+    - command: :HCOPY:DEVICE:LANGUAGE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :HCOPY:DEVICE:LANGUAGE
+    - command: :HCOPY:EXECUTE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :HCOPY:EXECUTE
+    - command: :HCOPY:FILE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :HCOPY:FILE
+    - command: :HCOPY:FILE:AUTO:DIR
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :HCOPY:FILE:AUTO:DIR
+    - command: :HCOPY:FILE:AUTO:FILE?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :HCOPY:FILE:AUTO:FILE?
+    - command: :HCOPY:FILE:AUTO:NUMBER?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :HCOPY:FILE:AUTO:NUMBER?
+    - command: :HCOPY:FILE:AUTO?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :HCOPY:FILE:AUTO?
+    - command: :HCOPY:FILE:NAME:AUTO:FILE:MONTH:STATE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :HCOPY:FILE:NAME:AUTO:FILE:MONTH:STATE
+    - command: :HCOPY:FILE:NAME:AUTO:FILE:PREFIX
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :HCOPY:FILE:NAME:AUTO:FILE:PREFIX
+    - command: :HCOPY:FILE:NAME:AUTO:FILE:PREFIX:STATE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :HCOPY:FILE:NAME:AUTO:FILE:PREFIX:STATE
+    - command: :HCOPY:FILE:NAME:AUTO:FILE:YEAR:STATE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :HCOPY:FILE:NAME:AUTO:FILE:YEAR:STATE
+    - command: :HCOPY:FILE:NAME:AUTO:STATE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :HCOPY:FILE:NAME:AUTO:STATE
+    - command: :HCOPY:IMAGE:FORMAT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :HCOPY:IMAGE:FORMAT
+    - command: :HCOPY:REGION
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :HCOPY:REGION
+  HISLIP:
+    commands:
+    - command: :HISLIP
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :HISLIP
+  HISLIP0:
+    commands:
+    - command: :HISLIP0
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :HISLIP0
+  HOST:
+    commands:
+    - command: :HOST
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :HOST
+  HOSTNAME:
+    commands:
+    - command: :HOSTNAME
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :HOSTNAME
+  ID:
+    commands:
+    - command: :ID
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ID
+  IEEE Common:
+    commands:
+    - command: '*ARGV'
+      purpose: Extracted from manuals. Needs operator verification.
+      example: '*ARGV'
+    - command: '*CLS'
+      purpose: Clear status registers and error queue
+      example: '*CLS'
+    - command: '*COMMAND'
+      purpose: Extracted from manuals. Needs operator verification.
+      example: '*COMMAND'
+    - command: '*ESE'
+      purpose: Extracted from manuals. Needs operator verification.
+      example: '*ESE'
+    - command: '*ESE?'
+      purpose: Extracted from manuals. Needs operator verification.
+      example: '*ESE?'
+    - command: '*ESR?'
+      purpose: Extracted from manuals. Needs operator verification.
+      example: '*ESR?'
+    - command: '*IDN'
+      purpose: Extracted from manuals. Needs operator verification.
+      example: '*IDN'
+    - command: '*IDN?'
+      purpose: Identify connected instrument
+      example: '*IDN?'
+    - command: '*INIT'
+      purpose: Extracted from manuals. Needs operator verification.
+      example: '*INIT'
+    - command: '*IST?'
+      purpose: Extracted from manuals. Needs operator verification.
+      example: '*IST?'
+    - command: '*NONSENSE?'
+      purpose: Extracted from manuals. Needs operator verification.
+      example: '*NONSENSE?'
+    - command: '*OPC'
+      purpose: Extracted from manuals. Needs operator verification.
+      example: '*OPC'
+    - command: '*OPC?'
+      purpose: Operation complete query
+      example: '*OPC?'
+    - command: '*OPT'
+      purpose: Extracted from manuals. Needs operator verification.
+      example: '*OPT'
+    - command: '*OPT?'
+      purpose: Extracted from manuals. Needs operator verification.
+      example: '*OPT?'
+    - command: '*PRE'
+      purpose: Extracted from manuals. Needs operator verification.
+      example: '*PRE'
+    - command: '*PRE?'
+      purpose: Extracted from manuals. Needs operator verification.
+      example: '*PRE?'
+    - command: '*PSC'
+      purpose: Extracted from manuals. Needs operator verification.
+      example: '*PSC'
+    - command: '*RCL'
+      purpose: Extracted from manuals. Needs operator verification.
+      example: '*RCL'
+    - command: '*RST'
+      purpose: Reset the instrument to default state
+      example: '*RST'
+    - command: '*SAV'
+      purpose: Extracted from manuals. Needs operator verification.
+      example: '*SAV'
+    - command: '*SRE'
+      purpose: Extracted from manuals. Needs operator verification.
+      example: '*SRE'
+    - command: '*SRE?'
+      purpose: Extracted from manuals. Needs operator verification.
+      example: '*SRE?'
+    - command: '*STB'
+      purpose: Extracted from manuals. Needs operator verification.
+      example: '*STB'
+    - command: '*STB?'
+      purpose: Extracted from manuals. Needs operator verification.
+      example: '*STB?'
+    - command: '*TRG'
+      purpose: Extracted from manuals. Needs operator verification.
+      example: '*TRG'
+    - command: '*TST?'
+      purpose: Extracted from manuals. Needs operator verification.
+      example: '*TST?'
+    - command: '*WAI'
+      purpose: Extracted from manuals. Needs operator verification.
+      example: '*WAI'
+  IMMEDIATE:
+    commands:
+    - command: :IMMEDIATE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :IMMEDIATE
+  INITIATE:
+    commands:
+    - command: :INITIATE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :INITIATE
+  INPUT:
+    commands:
+    - command: :INPUT:USER
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :INPUT:USER
+  INST0:
+    commands:
+    - command: :INST0
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :INST0
+  INSTR:
+    commands:
+    - command: :INSTR
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :INSTR
+  INTERNAL:
+    commands:
+    - command: :INTERNAL
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :INTERNAL
+  IPADDRESS:
+    commands:
+    - command: :IPADDRESS
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :IPADDRESS
+  KBOARD:
+    commands:
+    - command: :KBOARD:LAYOUT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :KBOARD:LAYOUT
+  LAN:
+    commands:
+    - command: :LAN
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :LAN
+  LIST:
+    commands:
+    - command: :LIST
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :LIST
+  LOCALHOST:
+    commands:
+    - command: :LOCALHOST
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :LOCALHOST
+  LOGGING:
+    commands:
+    - command: :LOGGING:STATE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :LOGGING:STATE
+  MAPPING:
+    commands:
+    - command: :MAPPING
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :MAPPING
+  MAXIMIZE:
+    commands:
+    - command: :MAXIMIZE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :MAXIMIZE
+  MEASURE:
+    commands:
+    - command: :MEASURE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :MEASURE
+  MEMORY:
+    commands:
+    - command: :MEMORY:HFREE?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :MEMORY:HFREE?
+  MMEMORY:
+    commands:
+    - command: :MMEMORY
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :MMEMORY
+    - command: :MMEMORY:CATALOG:LENGTH?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :MMEMORY:CATALOG:LENGTH?
+    - command: :MMEMORY:CATALOG?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :MMEMORY:CATALOG?
+    - command: :MMEMORY:CDIRECTORY
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :MMEMORY:CDIRECTORY
+    - command: :MMEMORY:COPY
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :MMEMORY:COPY
+    - command: :MMEMORY:DATA
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :MMEMORY:DATA
+    - command: :MMEMORY:DATA?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :MMEMORY:DATA?
+    - command: :MMEMORY:DCATALOG:LENGTH?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :MMEMORY:DCATALOG:LENGTH?
+    - command: :MMEMORY:DCATALOG?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :MMEMORY:DCATALOG?
+    - command: :MMEMORY:DELETE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :MMEMORY:DELETE
+    - command: :MMEMORY:LOAD
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :MMEMORY:LOAD
+    - command: :MMEMORY:LOAD:STATE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :MMEMORY:LOAD:STATE
+    - command: :MMEMORY:MDIRECTORY
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :MMEMORY:MDIRECTORY
+    - command: :MMEMORY:MOVE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :MMEMORY:MOVE
+    - command: :MMEMORY:MSIS
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :MMEMORY:MSIS
+    - command: :MMEMORY:RDIRECTORY
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :MMEMORY:RDIRECTORY
+    - command: :MMEMORY:RDIRECTORY:RECURSIVE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :MMEMORY:RDIRECTORY:RECURSIVE
+    - command: :MMEMORY:STORE:STATE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :MMEMORY:STORE:STATE
+  MODE:
+    commands:
+    - command: :MODE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :MODE
+  MONTH:
+    commands:
+    - command: :MONTH:STATE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :MONTH:STATE
+  NAME:
+    commands:
+    - command: :NAME
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :NAME
+  NAME?:
+    commands:
+    - command: :NAME?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :NAME?
+  NEXT:
+    commands:
+    - command: :NEXT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :NEXT
+  NUMBER?:
+    commands:
+    - command: :NUMBER?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :NUMBER?
+  OFFSET:
+    commands:
+    - command: :OFFSET
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :OFFSET
+    - command: :OFFSET:STATE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :OFFSET:STATE
+  OR:
+    commands:
+    - command: :OR
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :OR
+  OTA:
+    commands:
+    - command: :OTA:OFFSET
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :OTA:OFFSET
+  OUTPUT:
+    commands:
+    - command: :OUTPUT:USER
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :OUTPUT:USER
+  OUTPUT1:
+    commands:
+    - command: :OUTPUT1:STATE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :OUTPUT1:STATE
+  POINT:
+    commands:
+    - command: :POINT:CATALOG?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :POINT:CATALOG?
+  POINT?:
+    commands:
+    - command: :POINT?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :POINT?
+  POWER:
+    commands:
+    - command: :POWER
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :POWER
+  PREFIX:
+    commands:
+    - command: :PREFIX
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :PREFIX
+    - command: :PREFIX:STATE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :PREFIX:STATE
+  PRESET:
+    commands:
+    - command: :PRESET
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :PRESET
+  RANGE:
+    commands:
+    - command: :RANGE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :RANGE
+  RCL:
+    commands:
+    - command: :RCL
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :RCL
+  RCS:
+    commands:
+    - command: :RCS
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :RCS
+  READ:
+    commands:
+    - command: :READ
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :READ
+  READ1?:
+    commands:
+    - command: :READ1?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :READ1?
+  READ2?:
+    commands:
+    - command: :READ2?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :READ2?
+  REMOVE:
+    commands:
+    - command: :REMOVE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :REMOVE
+  RESOLUTION:
+    commands:
+    - command: :RESOLUTION
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :RESOLUTION
+  RMV:
+    commands:
+    - command: :RMV
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :RMV
+  ROSCILLATOR:
+    commands:
+    - command: :ROSCILLATOR
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ROSCILLATOR
+    - command: :ROSCILLATOR:EXTERNAL:FREQUENCY
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ROSCILLATOR:EXTERNAL:FREQUENCY
+    - command: :ROSCILLATOR:EXTERNAL:RFOFF
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ROSCILLATOR:EXTERNAL:RFOFF
+    - command: :ROSCILLATOR:EXTERNAL:SBANDWIDTH
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ROSCILLATOR:EXTERNAL:SBANDWIDTH
+    - command: :ROSCILLATOR:OUTPUT:FREQUENCY:MODE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ROSCILLATOR:OUTPUT:FREQUENCY:MODE
+    - command: :ROSCILLATOR:PRESET
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ROSCILLATOR:PRESET
+    - command: :ROSCILLATOR:SOURCE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ROSCILLATOR:SOURCE
+  RTS:
+    commands:
+    - command: :RTS
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :RTS
+  RX:
+    commands:
+    - command: :RX
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :RX
+  SELF:
+    commands:
+    - command: :SELF
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SELF
+  SENS:
+    commands:
+    - command: :SENS:LOGG:STAT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SENS:LOGG:STAT
+  SENS1:
+    commands:
+    - command: :SENS1:DISP:PERM:PRI
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SENS1:DISP:PERM:PRI
+    - command: :SENS1:DISP:PERM:STAT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SENS1:DISP:PERM:STAT
+    - command: :SENS1:FILT:LENG
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SENS1:FILT:LENG
+    - command: :SENS1:FILT:LENG:AUTO?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SENS1:FILT:LENG:AUTO?
+    - command: :SENS1:FILT:LENG?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SENS1:FILT:LENG?
+    - command: :SENS1:FILT:SONC
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SENS1:FILT:SONC
+    - command: :SENS1:FILT:TYPE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SENS1:FILT:TYPE
+    - command: :SENS1:FREQ
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SENS1:FREQ
+    - command: :SENS1:POW:DISP:PERM:STAT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SENS1:POW:DISP:PERM:STAT
+    - command: :SENS1:POW:FILT:LENG:USER?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SENS1:POW:FILT:LENG:USER?
+    - command: :SENS1:POW:OFFS
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SENS1:POW:OFFS
+    - command: :SENS1:POW:OFFS:STAT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SENS1:POW:OFFS:STAT
+    - command: :SENS1:SNUM?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SENS1:SNUM?
+    - command: :SENS1:SOUR
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SENS1:SOUR
+    - command: :SENS1:STAT?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SENS1:STAT?
+    - command: :SENS1:TYPE?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SENS1:TYPE?
+    - command: :SENS1:UNIT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SENS1:UNIT
+    - command: :SENS1:ZERO
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SENS1:ZERO
+  SENS2:
+    commands:
+    - command: :SENS2:UNIT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SENS2:UNIT
+  SENSE:
+    commands:
+    - command: :SENSE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SENSE
+  SENSE1:
+    commands:
+    - command: :SENSE1:POWER:CORRECTION:SPDEVICE:STATE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SENSE1:POWER:CORRECTION:SPDEVICE:STATE
+  SENSOR:
+    commands:
+    - command: :SENSOR
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SENSOR
+  SENSORDATA:
+    commands:
+    - command: :SENSORDATA
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SENSORDATA
+  SENSORDATASERIES:
+    commands:
+    - command: :SENSORDATASERIES
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SENSORDATASERIES
+  SIGNAL:
+    commands:
+    - command: :SIGNAL
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SIGNAL
+  SLIST:
+    commands:
+    - command: :SLIST
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SLIST
+    - command: :SLIST:CLEAR
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SLIST:CLEAR
+    - command: :SLIST:CLEAR:LAN
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SLIST:CLEAR:LAN
+    - command: :SLIST:CLEAR:USB
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SLIST:CLEAR:USB
+    - command: :SLIST:ELEMENT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SLIST:ELEMENT
+    - command: :SLIST:SCAN
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SLIST:SCAN
+    - command: :SLIST:SCAN:LSENSOR
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SLIST:SCAN:LSENSOR
+    - command: :SLIST:SCAN:USENSOR
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SLIST:SCAN:USENSOR
+    - command: :SLIST:SENSOR:MAP
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SLIST:SENSOR:MAP
+  SNUMBER:
+    commands:
+    - command: :SNUMBER
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SNUMBER
+  SNUMBER?:
+    commands:
+    - command: :SNUMBER?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SNUMBER?
+  SOCKET:
+    commands:
+    - command: :SOCKET
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SOCKET
+  SOURCE:
+    commands:
+    - command: :SOURCE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SOURCE
+    - command: :SOURCE:AREGENERATOR:UNITS:RANGE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SOURCE:AREGENERATOR:UNITS:RANGE
+  SOURCE1:
+    commands:
+    - command: :SOURCE1:AM1:STATE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SOURCE1:AM1:STATE
+    - command: :SOURCE1:AREGENERATOR:FRONTEND:ANTENNA:CUSTOM
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SOURCE1:AREGENERATOR:FRONTEND:ANTENNA:CUSTOM
+    - command: :SOURCE1:AREGENERATOR:FRONTEND:TRX1:ANTENNA
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SOURCE1:AREGENERATOR:FRONTEND:TRX1:ANTENNA
+    - command: :SOURCE1:AREGENERATOR:SWUNIT:MAPPING1:CONFIG?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SOURCE1:AREGENERATOR:SWUNIT:MAPPING1:CONFIG?
+    - command: :SOURCE1:AREGENERATOR:SWUNIT:RX
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SOURCE1:AREGENERATOR:SWUNIT:RX
+    - command: :SOURCE1:AREGENERATOR:SWUNIT:TX
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SOURCE1:AREGENERATOR:SWUNIT:TX
+    - command: :SOURCE1:FREQUENCY:CW
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SOURCE1:FREQUENCY:CW
+    - command: :SOURCE1:FREQUENCY:OFFSET
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SOURCE1:FREQUENCY:OFFSET
+  SPEED:
+    commands:
+    - command: :SPEED
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SPEED
+  STAT:
+    commands:
+    - command: :STAT:OPER:ENAB
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :STAT:OPER:ENAB
+    - command: :STAT:OPER:EVEN?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :STAT:OPER:EVEN?
+    - command: :STAT:OPER:NTR
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :STAT:OPER:NTR
+    - command: :STAT:OPER:PTR
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :STAT:OPER:PTR
+  STATE:
+    commands:
+    - command: :STATE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :STATE
+  STATUS:
+    commands:
+    - command: :STATUS
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :STATUS
+    - command: :STATUS:OPERATION
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :STATUS:OPERATION
+    - command: :STATUS:OPERATION:CONDITION?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :STATUS:OPERATION:CONDITION?
+    - command: :STATUS:OPERATION:ENABLE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :STATUS:OPERATION:ENABLE
+    - command: :STATUS:OPERATION:NTRANSITION
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :STATUS:OPERATION:NTRANSITION
+    - command: :STATUS:OPERATION:PTRANSITION
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :STATUS:OPERATION:PTRANSITION
+    - command: :STATUS:PRESET
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :STATUS:PRESET
+    - command: :STATUS:QUESTIONABLE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :STATUS:QUESTIONABLE
+    - command: :STATUS:QUESTIONABLE:CONDITION
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :STATUS:QUESTIONABLE:CONDITION
+    - command: :STATUS:QUESTIONABLE:CONDITION?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :STATUS:QUESTIONABLE:CONDITION?
+    - command: :STATUS:QUESTIONABLE:ENABLE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :STATUS:QUESTIONABLE:ENABLE
+    - command: :STATUS:QUESTIONABLE:NTRANSITION
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :STATUS:QUESTIONABLE:NTRANSITION
+    - command: :STATUS:QUESTIONABLE:PTRANSITION
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :STATUS:QUESTIONABLE:PTRANSITION
+    - command: :STATUS:QUEUE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :STATUS:QUEUE
+    - command: :STATUS:QUEUE?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :STATUS:QUEUE?
+  STATUS?:
+    commands:
+    - command: :STATUS?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :STATUS?
+  SUBCHANNEL:
+    commands:
+    - command: :SUBCHANNEL
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SUBCHANNEL
+  SUBNET:
+    commands:
+    - command: :SUBNET:MASK
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SUBNET:MASK
+  SYST:
+    commands:
+    - command: :SYST:INF:SCPI
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYST:INF:SCPI
+    - command: :SYST:ULOC
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYST:ULOC
+    - command: SYST:ERR?
+      purpose: Read one item from error queue
+      example: SYST:ERR?
+  SYSTEM:
+    commands:
+    - command: :SYSTEM
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM
+    - command: :SYSTEM:BIOS:VERSION?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:BIOS:VERSION?
+    - command: :SYSTEM:COMMUNICATE:GPIB
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:COMMUNICATE:GPIB
+    - command: :SYSTEM:COMMUNICATE:GPIB:LTERMINATOR
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:COMMUNICATE:GPIB:LTERMINATOR
+    - command: :SYSTEM:COMMUNICATE:GPIB:RESOURCE?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:COMMUNICATE:GPIB:RESOURCE?
+    - command: :SYSTEM:COMMUNICATE:HISLIP:RESOURCE?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:COMMUNICATE:HISLIP:RESOURCE?
+    - command: :SYSTEM:COMMUNICATE:NETWORK
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:COMMUNICATE:NETWORK
+    - command: :SYSTEM:COMMUNICATE:NETWORK:IPADDRESS
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:COMMUNICATE:NETWORK:IPADDRESS
+    - command: :SYSTEM:COMMUNICATE:NETWORK:IPADDRESS:MODE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:COMMUNICATE:NETWORK:IPADDRESS:MODE
+    - command: :SYSTEM:COMMUNICATE:NETWORK:MACADDRESS
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:COMMUNICATE:NETWORK:MACADDRESS
+    - command: :SYSTEM:COMMUNICATE:NETWORK:RESOURCE?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:COMMUNICATE:NETWORK:RESOURCE?
+    - command: :SYSTEM:COMMUNICATE:NETWORK:RESTART
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:COMMUNICATE:NETWORK:RESTART
+    - command: :SYSTEM:COMMUNICATE:NETWORK:STATUS?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:COMMUNICATE:NETWORK:STATUS?
+    - command: :SYSTEM:COMMUNICATE:RT:NETWORK
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:COMMUNICATE:RT:NETWORK
+    - command: :SYSTEM:COMMUNICATE:RT:NETWORK:IPADDRESS
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:COMMUNICATE:RT:NETWORK:IPADDRESS
+    - command: :SYSTEM:COMMUNICATE:RT:NETWORK:IPADDRESS:MODE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:COMMUNICATE:RT:NETWORK:IPADDRESS:MODE
+    - command: :SYSTEM:COMMUNICATE:RT:NETWORK:MACADDRESS
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:COMMUNICATE:RT:NETWORK:MACADDRESS
+    - command: :SYSTEM:COMMUNICATE:RT:NETWORK:RESTART
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:COMMUNICATE:RT:NETWORK:RESTART
+    - command: :SYSTEM:COMMUNICATE:RT:NETWORK:STATUS
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:COMMUNICATE:RT:NETWORK:STATUS
+    - command: :SYSTEM:COMMUNICATE:SERIAL:BAUD
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:COMMUNICATE:SERIAL:BAUD
+    - command: :SYSTEM:COMMUNICATE:SERIAL:PARITY
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:COMMUNICATE:SERIAL:PARITY
+    - command: :SYSTEM:COMMUNICATE:SERIAL:RESOURCE?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:COMMUNICATE:SERIAL:RESOURCE?
+    - command: :SYSTEM:COMMUNICATE:SERIAL:SBITS
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:COMMUNICATE:SERIAL:SBITS
+    - command: :SYSTEM:COMMUNICATE:SOCKET:RESOURCE?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:COMMUNICATE:SOCKET:RESOURCE?
+    - command: :SYSTEM:COMMUNICATE:SYST:NETWORK
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:COMMUNICATE:SYST:NETWORK
+    - command: :SYSTEM:COMMUNICATE:SYST:NETWORK:IPADDRESS
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:COMMUNICATE:SYST:NETWORK:IPADDRESS
+    - command: :SYSTEM:COMMUNICATE:SYST:NETWORK:IPADDRESS:MODE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:COMMUNICATE:SYST:NETWORK:IPADDRESS:MODE
+    - command: :SYSTEM:COMMUNICATE:SYST:NETWORK:MACADDRESS
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:COMMUNICATE:SYST:NETWORK:MACADDRESS
+    - command: :SYSTEM:COMMUNICATE:SYST:NETWORK:RESTART
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:COMMUNICATE:SYST:NETWORK:RESTART
+    - command: :SYSTEM:COMMUNICATE:SYST:NETWORK:STATUS
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:COMMUNICATE:SYST:NETWORK:STATUS
+    - command: :SYSTEM:COMMUNICATE:USB:RESOURCE?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:COMMUNICATE:USB:RESOURCE?
+    - command: :SYSTEM:DATE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:DATE
+    - command: :SYSTEM:DFPRINT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:DFPRINT
+    - command: :SYSTEM:DLOCK
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:DLOCK
+    - command: :SYSTEM:ERROR
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:ERROR
+    - command: :SYSTEM:ERROR:ALL?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:ERROR:ALL?
+    - command: :SYSTEM:ERROR:CODE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:ERROR:CODE
+    - command: :SYSTEM:ERROR:CODE:ALL?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:ERROR:CODE:ALL?
+    - command: :SYSTEM:ERROR:COUNT?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:ERROR:COUNT?
+    - command: :SYSTEM:ERROR:GNEXT?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:ERROR:GNEXT?
+    - command: :SYSTEM:ERROR:HISTORY:CLEAR
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:ERROR:HISTORY:CLEAR
+    - command: :SYSTEM:ERROR:STATIC?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:ERROR:STATIC?
+    - command: :SYSTEM:FPRESET
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:FPRESET
+    - command: :SYSTEM:HELP:EXPORT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:HELP:EXPORT
+    - command: :SYSTEM:IDENTIFICATION
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:IDENTIFICATION
+    - command: :SYSTEM:IDENTIFICATION:PRESET
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:IDENTIFICATION:PRESET
+    - command: :SYSTEM:INFORMATION:SCPI
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:INFORMATION:SCPI
+    - command: :SYSTEM:IRESPONSE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:IRESPONSE
+    - command: :SYSTEM:KLOCK
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:KLOCK
+    - command: :SYSTEM:LANGUAGE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:LANGUAGE
+    - command: :SYSTEM:LOCK:OWNER?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:LOCK:OWNER?
+    - command: :SYSTEM:LOCK:RELEASE:ALL
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:LOCK:RELEASE:ALL
+    - command: :SYSTEM:LOCK:REQUEST
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:LOCK:REQUEST
+    - command: :SYSTEM:MMEMORY:PATH:USER?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:MMEMORY:PATH:USER?
+    - command: :SYSTEM:NINFORMATION?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:NINFORMATION?
+    - command: :SYSTEM:NTP:HOSTNAME
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:NTP:HOSTNAME
+    - command: :SYSTEM:NTP:STATE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:NTP:STATE
+    - command: :SYSTEM:ORESPONSE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:ORESPONSE
+    - command: :SYSTEM:OSYSTEM?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:OSYSTEM?
+    - command: :SYSTEM:PRESET
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:PRESET
+    - command: :SYSTEM:PROTECT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:PROTECT
+    - command: :SYSTEM:RCL
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:RCL
+    - command: :SYSTEM:REBOOT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:REBOOT
+    - command: :SYSTEM:RESTART
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:RESTART
+    - command: :SYSTEM:SAV
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:SAV
+    - command: :SYSTEM:SECURITY:NETWORK
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:SECURITY:NETWORK
+    - command: :SYSTEM:SECURITY:NETWORK:AVAHI
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:SECURITY:NETWORK:AVAHI
+    - command: :SYSTEM:SECURITY:NETWORK:FTP
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:SECURITY:NETWORK:FTP
+    - command: :SYSTEM:SECURITY:NETWORK:HTTP
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:SECURITY:NETWORK:HTTP
+    - command: :SYSTEM:SECURITY:NETWORK:RAW
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:SECURITY:NETWORK:RAW
+    - command: :SYSTEM:SECURITY:NETWORK:REMSUPPORT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:SECURITY:NETWORK:REMSUPPORT
+    - command: :SYSTEM:SECURITY:NETWORK:RPC
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:SECURITY:NETWORK:RPC
+    - command: :SYSTEM:SECURITY:NETWORK:SMB
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:SECURITY:NETWORK:SMB
+    - command: :SYSTEM:SECURITY:NETWORK:SOE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:SECURITY:NETWORK:SOE
+    - command: :SYSTEM:SECURITY:NETWORK:SSH
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:SECURITY:NETWORK:SSH
+    - command: :SYSTEM:SECURITY:NETWORK:SWUPDATE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:SECURITY:NETWORK:SWUPDATE
+    - command: :SYSTEM:SECURITY:NETWORK:VNC
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:SECURITY:NETWORK:VNC
+    - command: :SYSTEM:SECURITY:SANITIZE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:SECURITY:SANITIZE
+    - command: :SYSTEM:SECURITY:VOLMODE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:SECURITY:VOLMODE
+    - command: :SYSTEM:SHUTDOWN
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:SHUTDOWN
+    - command: :SYSTEM:SPECIFICATION
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:SPECIFICATION
+    - command: :SYSTEM:SPECIFICATION:IDENTIFICATION:CATALOG?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:SPECIFICATION:IDENTIFICATION:CATALOG?
+    - command: :SYSTEM:SPECIFICATION:PARAMETER?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:SPECIFICATION:PARAMETER?
+    - command: :SYSTEM:SPECIFICATION:VERSION
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:SPECIFICATION:VERSION
+    - command: :SYSTEM:SPECIFICATION:VERSION:CATALOG?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:SPECIFICATION:VERSION:CATALOG?
+    - command: :SYSTEM:SPECIFICATION:VERSION:FACTORY?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:SPECIFICATION:VERSION:FACTORY?
+    - command: :SYSTEM:SPECIFICATION?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:SPECIFICATION?
+    - command: :SYSTEM:SRDATA?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:SRDATA?
+    - command: :SYSTEM:STARTUP:COMPLETE?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:STARTUP:COMPLETE?
+    - command: :SYSTEM:TIME
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:TIME
+    - command: :SYSTEM:TIME:PROTOCOL
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:TIME:PROTOCOL
+    - command: :SYSTEM:TIME:ZONE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:TIME:ZONE
+    - command: :SYSTEM:TIME:ZONE:CATALOG?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:TIME:ZONE:CATALOG?
+    - command: :SYSTEM:ULOCK
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:ULOCK
+    - command: :SYSTEM:UPTIME?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:UPTIME?
+    - command: :SYSTEM:VERSION?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:VERSION?
+    - command: :SYSTEM:WAIT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :SYSTEM:WAIT
+  TEST:
+    commands:
+    - command: :TEST
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :TEST
+    - command: :TEST:PIXEL:COLOR
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :TEST:PIXEL:COLOR
+    - command: :TEST:PIXEL:GRADIENT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :TEST:PIXEL:GRADIENT
+    - command: :TEST:PIXEL:POINTSIZE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :TEST:PIXEL:POINTSIZE
+    - command: :TEST:PIXEL:RGBA
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :TEST:PIXEL:RGBA
+    - command: :TEST:PIXEL:TEXT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :TEST:PIXEL:TEXT
+    - command: :TEST:PIXEL:WINDOW
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :TEST:PIXEL:WINDOW
+  TYPE?:
+    commands:
+    - command: :TYPE?
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :TYPE?
+  UNIT:
+    commands:
+    - command: :UNIT
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :UNIT
+  USER:
+    commands:
+    - command: :USER
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :USER
+  VALUE:
+    commands:
+    - command: :VALUE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :VALUE
+  WINDOW:
+    commands:
+    - command: :WINDOW
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :WINDOW
+  WORKGROUP:
+    commands:
+    - command: :WORKGROUP
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :WORKGROUP
+  YEAR:
+    commands:
+    - command: :YEAR:STATE
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :YEAR:STATE
+  ZERO:
+    commands:
+    - command: :ZERO
+      purpose: Extracted from manuals. Needs operator verification.
+      example: :ZERO

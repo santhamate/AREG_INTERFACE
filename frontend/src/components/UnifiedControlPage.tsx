@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import CommandBuilder from "./CommandBuilder";
 import ScenarioGenerator from "./ScenarioGenerator";
+import SimulationOverview from "./SimulationOverview";
 import "./UnifiedControlPage.css";
 
 // ---------------------------------------------------------------------------
@@ -123,7 +124,7 @@ interface ScenarioDecodeResult {
 interface CommandLogEntry {
   timestamp: string;
   command: string;
-  command_type: "query" | "write" | "empty";
+  command_type: "query" | "binary-query" | "write" | "action" | "empty";
   ok: boolean;
   response?: string | null;
   message?: string | null;
@@ -132,7 +133,7 @@ interface CommandLogEntry {
 
 interface CommandResult {
   command: string;
-  command_type: "query" | "write" | "empty";
+  command_type: "query" | "binary-query" | "write" | "action" | "empty";
   response: string | null;
   message: string | null;
   ok: boolean;
@@ -140,11 +141,25 @@ interface CommandResult {
   error: string | null;
 }
 
+interface ScenarioWorkspaceDownloadResult {
+  ok: boolean;
+  message?: string;
+  local_path?: string | null;
+  remote_path?: string | null;
+  bytes_transferred: number;
+  duration: number;
+  validation_ok: boolean;
+  size_bytes: number;
+  message_count: number;
+  error?: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
 const API_BASE = "http://127.0.0.1:8000/api";
+const SCPI_HISTORY_STORAGE_KEY = "areg-scpi-history";
 
 const CONNECTION_OPTIONS: { label: string; value: Protocol; defaultPort: number; supported: boolean }[] = [
   { label: "HiSLIP (4880)", value: "hislip", defaultPort: 4880, supported: true },
@@ -262,6 +277,7 @@ export default function UnifiedControlPage() {
   const [transferSelectedPath, setTransferSelectedPath] = useState("");
   const [transferLocalFile, setTransferLocalFile] = useState<File | null>(null);
   const [transferDownloadDir, setTransferDownloadDir] = useState("./downloads");
+  const [transferWorkspaceDir, setTransferWorkspaceDir] = useState("./scenarios");
   const [transferNewFolder, setTransferNewFolder] = useState("");
   const [transferRenameTo, setTransferRenameTo] = useState("");
   const [transferBusy, setTransferBusy] = useState(false);
@@ -296,6 +312,8 @@ export default function UnifiedControlPage() {
   const [scpiResult, setScpiResult] = useState<CommandResult | null>(null);
   const [scpiRunning, setScpiRunning] = useState(false);
   const [scpiError, setScpiError] = useState<string | null>(null);
+  const [scpiTimeoutMs, setScpiTimeoutMs] = useState(3000);
+  const [scpiHistory, setScpiHistory] = useState<string[]>([]);
 
   // -- Logs --
   const [commandLog, setCommandLog] = useState<CommandLogEntry[]>([]);
@@ -320,6 +338,29 @@ export default function UnifiedControlPage() {
     const id = setInterval(poll, 3000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(SCPI_HISTORY_STORAGE_KEY);
+      if (!stored) {
+        return;
+      }
+      const parsed = JSON.parse(stored) as unknown;
+      if (Array.isArray(parsed)) {
+        setScpiHistory(parsed.filter((item): item is string => typeof item === "string").slice(0, 12));
+      }
+    } catch {
+      // Ignore invalid local storage state.
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(SCPI_HISTORY_STORAGE_KEY, JSON.stringify(scpiHistory.slice(0, 12)));
+    } catch {
+      // Ignore local storage errors.
+    }
+  }, [scpiHistory]);
 
   // Auto-scan on connect
   const prevConnectedRef = useRef(false);
@@ -638,6 +679,46 @@ export default function UnifiedControlPage() {
     }
   };
 
+  const importScenarioToWorkspace = async () => {
+    if (!transferSelectedPath) {
+      setTransferError("Select a remote .osi file to import");
+      return;
+    }
+    setTransferBusy(true);
+    setTransferError(null);
+    try {
+      const r = await fetch(`${API_BASE}/scenario/files/download`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          config: transferConfigPayload(),
+          remote_path: transferSelectedPath,
+          local_dir: transferWorkspaceDir,
+          overwrite: false,
+          inspect_after_download: true,
+        }),
+      });
+      const data = await r.json() as ScenarioWorkspaceDownloadResult;
+      if (!data.ok || !data.local_path) {
+        setTransferError(data.error ?? "Scenario import failed");
+        appendTransferLog(`Import failed: ${data.error ?? "unknown error"}`);
+        return;
+      }
+
+      setTransferStatus(data.message ?? "Scenario imported to workspace");
+      appendTransferLog(
+        `Imported scenario: ${data.remote_path ?? transferSelectedPath} -> ${data.local_path} (${data.message_count} frames)`
+      );
+      await decodeScenario(false, false, data.local_path);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Scenario import failed";
+      setTransferError(msg);
+      appendTransferLog(`Import error: ${msg}`);
+    } finally {
+      setTransferBusy(false);
+    }
+  };
+
   const createTransferDirectory = async () => {
     if (!transferNewFolder.trim()) {
       setTransferError("Enter a folder name/path");
@@ -928,14 +1009,14 @@ export default function UnifiedControlPage() {
     }
   };
 
-  const decodeScenario = async (decodeLoaded: boolean, forceRedownload = false) => {
+  const decodeScenario = async (decodeLoaded: boolean, forceRedownload = false, localPath: string | null = null) => {
     setInspectorBusy(true);
     setInspectorError(null);
     try {
       const endpoint = decodeLoaded ? "/scenario/inspector/decode-loaded" : "/scenario/inspector/decode-selected";
       const payload = {
-        remote_path: decodeLoaded ? null : selectedScenario,
-        local_path: null,
+        remote_path: decodeLoaded || localPath ? null : selectedScenario,
+        local_path: localPath,
         force_redownload: forceRedownload,
         transfer_config: buildTransferConfigForInspector(),
       };
@@ -1007,13 +1088,18 @@ export default function UnifiedControlPage() {
   // -------------------------------------------------------------------------
 
   const runScpiCommand = async () => {
+    const cleanedCommand = scpiCommand.trim();
+    if (!cleanedCommand) {
+      setScpiError("Command is empty");
+      return;
+    }
     setScpiRunning(true);
     setScpiError(null);
     try {
       const r = await fetch(`${API_BASE}/scpi/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command: scpiCommand }),
+        body: JSON.stringify({ command: cleanedCommand, timeout_ms: scpiTimeoutMs }),
       });
       if (!r.ok) {
         const p = await r.json() as { detail?: string };
@@ -1021,6 +1107,8 @@ export default function UnifiedControlPage() {
       }
       const data: CommandResult = await r.json() as CommandResult;
       setScpiResult(data);
+      setScpiCommand(cleanedCommand);
+      setScpiHistory((current) => [cleanedCommand, ...current.filter((entry) => entry !== cleanedCommand)].slice(0, 12));
       await refreshLog();
     } catch (e) {
       setScpiError(e instanceof Error ? e.message : "Command failed");
@@ -1151,6 +1239,13 @@ export default function UnifiedControlPage() {
           MAIN CONTENT
           ================================================================ */}
       <div className="ucp-main">
+
+        {/* ============================================================
+            SECTION 0 – Simulation Overview
+            ============================================================ */}
+        <Section icon="📊" title="Simulation Overview">
+          <SimulationOverview />
+        </Section>
 
         {/* ============================================================
             SECTION 1 – Device / File Management
@@ -1364,7 +1459,12 @@ export default function UnifiedControlPage() {
               <label>Download local directory</label>
               <input value={transferDownloadDir} onChange={(e) => setTransferDownloadDir(e.target.value)} placeholder="C:/temp" />
             </div>
+            <div className="ucp-field" style={{ flex: 1 }}>
+              <label>Scenario workspace directory</label>
+              <input value={transferWorkspaceDir} onChange={(e) => setTransferWorkspaceDir(e.target.value)} placeholder="./scenarios" />
+            </div>
             <button className="ucp-btn" onClick={downloadTransferFile} disabled={transferBusy || !transferSelectedPath}>Download</button>
+            <button className="ucp-btn" onClick={importScenarioToWorkspace} disabled={transferBusy || !transferSelectedPath || !transferSelectedPath.toLowerCase().endsWith(".osi")}>Import To Workspace</button>
             <div className="ucp-field" style={{ minWidth: 160 }}>
               <label>Rename selected to</label>
               <input value={transferRenameTo} onChange={(e) => setTransferRenameTo(e.target.value)} placeholder="new_name.osi" />
@@ -1458,6 +1558,17 @@ export default function UnifiedControlPage() {
             </div>
           </div>
 
+          <div className="ucp-primary-player-actions" style={{ marginBottom: 12 }}>
+            <button
+              className="ucp-btn success"
+              onClick={loadScenario}
+              disabled={!hasSelection || playerBusy}
+              title={session.connected ? "Load scenario onto instrument" : "Load scenario into offline preview"}
+            >
+              {session.connected ? "⏏ Load Selected Scenario" : "⏏ Load to Offline Player"}
+            </button>
+          </div>
+
           {/* Controls */}
           <div className="ucp-player-controls" style={{ marginBottom: 12 }}>
             <label style={{ display: "flex", alignItems: "center", gap: 8, marginRight: 8 }}>
@@ -1490,40 +1601,40 @@ export default function UnifiedControlPage() {
             <button
               className="ucp-ctrl-btn"
               onClick={loadScenario}
-              disabled={!session.connected || !hasSelection || playerBusy}
-              title="Load scenario onto instrument"
+              disabled={!hasSelection || playerBusy}
+              title={session.connected ? "Load scenario onto instrument" : "Load scenario into offline preview"}
             >
               ⏏ Load
             </button>
             <button
               className="ucp-ctrl-btn play"
               onClick={() => playerAction("Play", "/scenario/play")}
-              disabled={!session.connected || !hasSelection || playerBusy}
-              title="Start playback"
+              disabled={!hasSelection || playerBusy}
+              title={session.connected ? "Start playback" : "Start offline preview playback"}
             >
               ▶ Play
             </button>
             <button
               className="ucp-ctrl-btn"
               onClick={() => playerAction("Pause", "/scenario/pause")}
-              disabled={!session.connected || playbackState !== "playing" || playerBusy}
-              title="Pause playback"
+              disabled={playbackState !== "playing" || playerBusy}
+              title={session.connected ? "Pause playback" : "Pause offline preview playback"}
             >
               ⏸ Pause
             </button>
             <button
               className="ucp-ctrl-btn stop"
               onClick={() => playerAction("Stop", "/scenario/stop")}
-              disabled={!session.connected || (playbackState !== "playing" && playbackState !== "paused") || playerBusy}
-              title="Stop playback"
+              disabled={(playbackState !== "playing" && playbackState !== "paused") || playerBusy}
+              title={session.connected ? "Stop playback" : "Stop offline preview playback"}
             >
               ⏹ Stop
             </button>
             <button
               className="ucp-ctrl-btn"
               onClick={() => playerAction("Restart", "/scenario/restart")}
-              disabled={!session.connected || !hasSelection || playerBusy}
-              title="Restart playback"
+              disabled={!hasSelection || playerBusy}
+              title={session.connected ? "Restart playback" : "Restart offline preview playback"}
             >
               🔄 Restart
             </button>
@@ -1538,159 +1649,12 @@ export default function UnifiedControlPage() {
             </button>
           </div>
 
-          {/* Status row */}
-          <div className="ucp-player-status-row">
-            <div className="ucp-status-chip">
-              <span className="label">Current replay mode</span>
-              <span className="value">{replayMode === "LOOP" ? "Loop" : replayMode === "SINGle" ? "Single" : "Unknown"}</span>
-            </div>
-            {lastCmd && (
-              <div className="ucp-status-chip">
-                <span className="label">Last action</span>
-                <span className="value">{lastCmd}</span>
-              </div>
-            )}
-            {lastAppliedReplayMode !== "UNKNOWN" && (
-              <div className="ucp-status-chip">
-                <span className="label">Applied replay mode</span>
-                <span className="value">{lastAppliedReplayMode === "LOOP" ? "Loop" : "Single"}</span>
-              </div>
-            )}
-            {lastResp && (
-              <div className="ucp-status-chip">
-                <span className="label">Response</span>
-                <span className="value">{lastResp}</span>
-              </div>
-            )}
-          </div>
-
           {playerMsg && (
             <div className="ucp-msg error" style={{ marginTop: 8 }}>{playerMsg}</div>
           )}
         </Section>
 
-        {/* ============================================================
-            SECTION 4 – Scenario Inspector
-            ============================================================ */}
-        <Section icon="🧩" title="Scenario Inspector" defaultOpen={false}>
-          <div className="ucp-row" style={{ marginBottom: 10 }}>
-            <button
-              className="ucp-btn"
-              onClick={() => decodeScenario(false, false)}
-              disabled={inspectorBusy || !selectedScenario}
-            >
-              Decode selected scenario
-            </button>
-            <button
-              className="ucp-btn secondary"
-              onClick={() => decodeScenario(true, false)}
-              disabled={inspectorBusy}
-            >
-              Decode currently loaded scenario
-            </button>
-            <button
-              className="ucp-btn secondary"
-              onClick={() => decodeScenario(Boolean(inspectorResult?.loaded_scenario_path), true)}
-              disabled={inspectorBusy}
-            >
-              Refresh decode
-            </button>
-            <button className="ucp-btn secondary danger" onClick={clearScenarioCache} disabled={inspectorBusy}>
-              Clear scenario cache
-            </button>
-          </div>
-
-          <div className="ucp-row" style={{ marginBottom: 10, gap: 12, flexWrap: "wrap" }}>
-            <div className="ucp-status-chip"><span className="label">Selected file</span><span className="value">{selectedScenario ?? "None"}</span></div>
-            <div className="ucp-status-chip"><span className="label">Loaded file</span><span className="value">{inspectorResult?.loaded_scenario_path ?? "Unknown"}</span></div>
-            <div className="ucp-status-chip"><span className="label">Replay mode</span><span className="value">{replayMode === "LOOP" ? "Loop" : replayMode === "SINGle" ? "Single" : "Unknown"}</span></div>
-            <div className="ucp-status-chip"><span className="label">Playback state</span><span className="value">{stateLabel(playbackState)}</span></div>
-            <div className="ucp-status-chip"><span className="label">Playback position</span><span className="value">{estimatedPlaybackSec != null ? `${estimatedPlaybackSec.toFixed(2)} s (estimated)` : "Not available"}</span></div>
-          </div>
-
-          {inspectorError && <div className="ucp-msg error" style={{ marginBottom: 8 }}>{inspectorError}</div>}
-
-          {!inspectorResult ? (
-            <div className="ucp-empty-state">No decoded scenario yet. Select a scenario and click decode.</div>
-          ) : (
-            <>
-              <div className="ucp-row" style={{ marginBottom: 10, gap: 12, flexWrap: "wrap" }}>
-                <div className="ucp-status-chip"><span className="label">Scenario</span><span className="value">{inspectorResult.scenario_name ?? "-"}</span></div>
-                <div className="ucp-status-chip"><span className="label">Format</span><span className="value">{inspectorResult.format_detected}</span></div>
-                <div className="ucp-status-chip"><span className="label">Duration</span><span className="value">{inspectorResult.duration != null ? `${inspectorResult.duration.toFixed(3)} s` : "-"}</span></div>
-                <div className="ucp-status-chip"><span className="label">Objects</span><span className="value">{inspectorResult.object_count}</span></div>
-                <div className="ucp-status-chip"><span className="label">Timesteps</span><span className="value">{inspectorResult.timestep_count}</span></div>
-                <div className="ucp-status-chip"><span className="label">Start/End</span><span className="value">{inspectorResult.time_start ?? "-"} / {inspectorResult.time_end ?? "-"}</span></div>
-              </div>
-
-              <div className="ucp-row" style={{ marginBottom: 8, gap: 8 }}>
-                <div className="ucp-empty-state">Remote path: {inspectorResult.remote_path ?? "-"}</div>
-                <div className="ucp-empty-state">Local cached path: {inspectorResult.local_cached_path ?? "-"}</div>
-              </div>
-
-              {inspectorResult.warnings.length > 0 && (
-                <div className="ucp-msg info" style={{ marginBottom: 8 }}>{inspectorResult.warnings.join(" | ")}</div>
-              )}
-              {inspectorResult.errors.length > 0 && (
-                <div className="ucp-msg error" style={{ marginBottom: 8 }}>{inspectorResult.errors.join(" | ")}</div>
-              )}
-
-              <div className="ucp-log-list" style={{ marginBottom: 10 }}>
-                {inspectorResult.objects.length === 0 ? (
-                  <div className="ucp-empty-state">
-                    This scenario file could not be decoded with the currently available parser. Metadata and raw summary are shown below.
-                  </div>
-                ) : (
-                  inspectorResult.objects.map((obj) => (
-                    <div
-                      key={obj.object_id}
-                      className={`ucp-log-entry ${selectedInspectorObjectId === obj.object_id ? "ok" : ""}`}
-                      onClick={() => setSelectedInspectorObjectId(obj.object_id)}
-                      style={{ cursor: "pointer" }}
-                    >
-                      <span className="ucp-log-ts">{obj.valid_time_start ?? "-"} → {obj.valid_time_end ?? "-"}</span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div className="ucp-log-cmd">{obj.object_id} ({obj.object_type ?? "unknown"})</div>
-                        <div className="ucp-log-response">
-                          d0={obj.initial_position?.distance ?? "-"}, d1={obj.final_position?.distance ?? "-"}, v0={obj.initial_speed ?? "-"}, vmax={obj.max_speed ?? "-"}, rcs={obj.rcs_summary?.avg ?? "-"}
-                        </div>
-                      </div>
-                      <span className="ucp-log-type query">{obj.samples.length} samples</span>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              {selectedInspectorObject && (
-                <div style={{ marginBottom: 10 }}>
-                  <div style={{ fontWeight: 600, marginBottom: 6 }}>Selected object details: {selectedInspectorObject.object_id}</div>
-                  <pre className="ucp-output" style={{ maxHeight: 220, overflow: "auto" }}>
-                    {JSON.stringify(selectedInspectorObject, null, 2)}
-                  </pre>
-                  <div style={{ fontWeight: 600, marginBottom: 6, marginTop: 8 }}>Timeline / samples</div>
-                  <div className="ucp-log-list" style={{ maxHeight: 220 }}>
-                    {selectedInspectorObject.samples.slice(0, 120).map((s, idx) => (
-                      <div key={idx} className="ucp-log-entry ok">
-                        <span className="ucp-log-ts">{s.timestamp ?? "-"}</span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div className="ucp-log-cmd">distance={s.distance ?? "-"}, speed={s.speed ?? "-"}, accel={s.acceleration ?? "-"}, lateral={s.lateral_offset ?? "-"}, rcs={s.rcs ?? "-"}</div>
-                        </div>
-                        <span className="ucp-log-type write">sample</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <details>
-                <summary style={{ cursor: "pointer", color: "var(--text-muted)", fontSize: 13 }}>Raw summary / metadata</summary>
-                <pre className="ucp-output" style={{ maxHeight: 220, overflow: "auto", marginTop: 8 }}>
-                  {JSON.stringify(inspectorResult.raw_summary, null, 2)}
-                </pre>
-              </details>
-            </>
-          )}
-        </Section>
+        {/* Scenario Inspector section removed per UX request. */}
 
         {/* ============================================================
           SECTION 5 – Scenario Generator
@@ -1707,6 +1671,36 @@ export default function UnifiedControlPage() {
         <Section icon="⌨" title="Manual SCPI Console" defaultOpen={false}>
           <div className="ucp-console-grid">
             <CommandBuilder command={scpiCommand} onCommandChange={setScpiCommand} />
+            <div className="ucp-row" style={{ gap: 12, alignItems: "end", flexWrap: "wrap" }}>
+              <label style={{ minWidth: 160 }}>
+                Timeout (ms)
+                <input
+                  className="ucp-cmd-input"
+                  type="number"
+                  min={100}
+                  step={100}
+                  value={scpiTimeoutMs}
+                  onChange={(e) => setScpiTimeoutMs(Math.max(100, Number(e.target.value) || 3000))}
+                />
+              </label>
+              <label style={{ minWidth: 260, flex: 1 }}>
+                Recent commands
+                <select
+                  className="ucp-cmd-input"
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      setScpiCommand(e.target.value);
+                    }
+                  }}
+                >
+                  <option value="">Select recent command…</option>
+                  {scpiHistory.map((entry) => (
+                    <option key={entry} value={entry}>{entry}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
             <div className="ucp-cmd-row">
               <input
                 className="ucp-cmd-input"

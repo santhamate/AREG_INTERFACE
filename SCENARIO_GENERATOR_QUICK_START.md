@@ -2,10 +2,12 @@
 
 ## Installation (5 minutes)
 
-### 1. Install OSI3 Package (Optional but Recommended)
-```bash
-pip install osi3
-```
+### 1. Install OSI Python Bindings (Optional but Recommended)
+
+The Python import module is `osi3`, but there is no published PyPI package named `osi3`.
+Use the official ASAM OSI Python setup instructions:
+
+https://opensimulationinterface.github.io/osi-antora-generator/asamosi/latest/interface/setup/setting_up_osi_python.html
 
 If you skip this, the application will work but show an error in the Scenario Generator with installation instructions.
 
@@ -171,10 +173,7 @@ The application checks:
 ## Troubleshooting
 
 ### "OSI3 not installed"
-```bash
-pip install osi3
-```
-Then restart the application.
+Use the official ASAM OSI Python setup instructions (link above), then restart the application.
 
 ### "Cannot write to directory"
 - Ensure output directory path is valid
@@ -193,7 +192,7 @@ Then restart the application.
 ### File not created
 - Check application error message for details
 - Look at browser console for API errors
-- Verify OSI3 is installed: `python -c "import osi3; print('OK')"`
+- Verify OSI3 bindings are installed: `python -c "import osi3; print('OK')"`
 
 ## Advanced Usage
 

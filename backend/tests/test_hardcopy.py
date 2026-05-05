@@ -173,7 +173,8 @@ async def test_successful_capture_png():
     hardcopy = HardcopyService(service)
 
     # Valid PNG header
-    png_data = b"\x89PNG\r\n\x1a\n" + b"\x00" * 1000
+    png_payload = b"\x89PNG\r\n\x1a\n" + b"\x00" * 1000
+    png_data = b"#41008" + png_payload
     service.transport.query_bytes = AsyncMock(return_value=png_data)
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -185,9 +186,31 @@ async def test_successful_capture_png():
         )
 
         assert result["ok"] is True
-        assert result["bytes_written"] == len(png_data)
+        assert result["bytes_written"] == len(png_payload)
+        assert result["payload_bytes"] == len(png_payload)
         assert Path(result["file_path"]).exists()
-        assert Path(result["file_path"]).read_bytes() == png_data
+        assert Path(result["file_path"]).read_bytes() == png_payload
+
+
+@pytest.mark.asyncio
+async def test_rejects_ascii_error_payload():
+    """ASCII error responses must not be saved as image files."""
+    service = MockScpiService()
+    hardcopy = HardcopyService(service)
+    service.transport.query_bytes = AsyncMock(return_value=b'-113,"Undefined header"\n')
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        result = await hardcopy.capture_hardcopy(
+            save_dir=tmpdir,
+            file_format="PNG",
+            filename_prefix="bad_capture",
+            use_timestamp=False,
+        )
+
+        assert result["ok"] is False
+        assert result["validation_ok"] is False
+        assert result["detected_type"] == "ASCII_ERROR"
+        assert result["file_path"] is None
 
 
 @pytest.mark.asyncio
@@ -280,12 +303,15 @@ async def test_configuration_and_execute_commands():
 
         # First call should be format configuration
         format_call = calls[0][0][0] if calls else ""
-        assert "HCOPY:IMAGE:FORMAT" in format_call or "PNG" in format_call
+        assert "HCOPY:DEVICE:LANGUAGE" in format_call.upper() or "PNG" in format_call
 
-        # Second call should be execute
         if len(calls) > 1:
-            execute_call = calls[1][0][0] if calls[1] else ""
-            assert "HCOPY:EXECUTE" in execute_call
+            auto_name_call = calls[1][0][0] if calls[1] else ""
+            assert "HCOPY:FILE:NAME:AUTO:STATE" in auto_name_call.upper()
+
+        if len(calls) > 2:
+            execute_call = calls[2][0][0] if calls[2] else ""
+            assert "HCOPY:EXECUTE" in execute_call.upper()
 
 
 if __name__ == "__main__":

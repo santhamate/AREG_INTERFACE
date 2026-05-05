@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from backend.app.core.command_registry import CommandRegistryService
 from backend.app.core.scpi_service import ScpiService
 from backend.app.models.scenario import (
     CommandLogEntry,
@@ -65,15 +66,33 @@ class CommandLogger:
 class ScenarioPlayerService:
     """Orchestrates scenario playback and control."""
 
-    def __init__(self, scpi_service: ScpiService):
+    def __init__(self, scpi_service: ScpiService, command_registry: CommandRegistryService | None = None):
         self.scpi_service = scpi_service
+        self.command_registry = command_registry or CommandRegistryService()
         self.logger = CommandLogger()
         self.selected_scenario: str | None = None
         self.current_playback_state: ScenarioPlaybackState = "unknown"
         self.current_replay_mode: ScenarioReplayMode = "UNKNOWN"
         self.desired_replay_mode: ScenarioReplayMode = "SINGle"
         self.cached_scenarios: list[ScenarioFile] = []
+        self.synced_to_instrument = False
         self.check_errors_after_write = False  # Optional feature for error checking
+
+    def _registry_command(self, key: str, **values: object) -> str:
+        return self.command_registry.resolve(key, values)
+
+    def _is_connected(self) -> bool:
+        return bool(getattr(self.scpi_service.transport, "connected", False))
+
+    def _log_local_action(self, action: str, message: str) -> None:
+        self.logger.log_command(
+            command=f"LOCAL:{action}",
+            command_type="action",
+            ok=True,
+            message=message,
+            is_query=False,
+            waited_for_response=False,
+        )
 
     async def execute_scpi_command(self, command: str) -> dict[str, Any]:
         """Execute SCPI command through central executor and log it.
@@ -92,12 +111,12 @@ class ScenarioPlayerService:
             response=result.get("response"),
             message=result.get("message"),
             error=result.get("error"),
-            is_query=result.get("command_type") == "query",
-            waited_for_response=result.get("command_type") == "query",
+            is_query=result.get("command_type") in {"query", "binary-query"},
+            waited_for_response=result.get("command_type") in {"query", "binary-query"},
         )
 
         # Optional: Check errors after write commands if enabled
-        if self.check_errors_after_write and result["command_type"] == "write" and result["ok"]:
+        if self.check_errors_after_write and result["command_type"] in {"write", "action"} and result["ok"]:
             await self._check_errors_optional()
 
         return result
@@ -112,8 +131,8 @@ class ScenarioPlayerService:
                 ok=result["ok"],
                 response=result.get("response"),
                 error=result.get("error"),
-                is_query=result.get("command_type") == "query",
-                waited_for_response=result.get("command_type") == "query",
+                is_query=result.get("command_type") in {"query", "binary-query"},
+                waited_for_response=result.get("command_type") in {"query", "binary-query"},
             )
         except Exception:
             pass  # Silently ignore optional error check failures
@@ -130,7 +149,7 @@ class ScenarioPlayerService:
         if self.cached_scenarios and not force_refresh:
             return self.cached_scenarios, None
 
-        if not self.scpi_service.transport.connected:
+        if not self._is_connected():
             return [], "Device not connected"
 
         target_dir = directory or "/osi"
@@ -138,7 +157,7 @@ class ScenarioPlayerService:
 
         # Try AREG-specific command first
         for cmd in [
-            f'SOURce1:AREGenerator:SCENario:FILE:CATalog? "{target_dir}"',
+            self._registry_command("scenario.catalog", source_hw=1, directory=target_dir),
             f':MMEMory:CATalog? "{target_dir}"',
         ]:
             try:
@@ -204,21 +223,38 @@ class ScenarioPlayerService:
         if mode not in ("SINGle", "LOOP"):
             return False, f"Invalid replay mode: {mode}"
 
+        # Always keep desired mode for preview/offline operation.
+        self.desired_replay_mode = mode  # type: ignore[assignment]
+
+        if not self._is_connected():
+            self.current_replay_mode = mode  # type: ignore[assignment]
+            self._log_local_action("replay-mode", f"Preview replay mode set to {mode}")
+            return True, f"Preview replay mode set to {mode}"
+
         try:
-            result = await self.execute_scpi_command(f"SOURce1:AREGenerator:SCENario:REPLay:MODE {mode}")
+            result = await self.execute_scpi_command(
+                self._registry_command("scenario.replay_mode.set", source_hw=1, mode=mode)
+            )
             if not result["ok"]:
                 return False, f"Replay mode set failed: {result.get('error', 'Unknown error')}"
 
             self.current_replay_mode = mode  # type: ignore[assignment]
-            self.desired_replay_mode = mode  # type: ignore[assignment]
             return True, f"Replay mode set to {mode}"
         except Exception as ex:
             return False, f"Replay mode set failed: {str(ex)}"
 
     async def query_scenario_replay_mode(self) -> ScenarioReplayMode:
         """Query current replay mode from instrument."""
+        if not self._is_connected():
+            # In preview mode, use local mode.
+            if self.current_replay_mode == "UNKNOWN":
+                self.current_replay_mode = self.desired_replay_mode
+            return self.current_replay_mode
+
         try:
-            result = await self.execute_scpi_command("SOURce1:AREGenerator:SCENario:REPLay:MODE?")
+            result = await self.execute_scpi_command(
+                self._registry_command("scenario.replay_mode.query", source_hw=1)
+            )
             if not result["ok"]:
                 self.current_replay_mode = "UNKNOWN"
                 return "UNKNOWN"
@@ -253,28 +289,64 @@ class ScenarioPlayerService:
         Returns:
             Tuple of (success, message)
         """
+        self.selected_scenario = scenario_name
+
+        # When disconnected, always allow local preview loading.
+        if not self._is_connected():
+            self.synced_to_instrument = False
+            self.current_playback_state = "loaded"
+            if replay_mode is not None:
+                ok, msg = await self.apply_scenario_playback_settings(replay_mode)
+                if not ok:
+                    return False, f"Scenario loaded in preview mode but replay mode failed: {msg}"
+                self._log_local_action("load", f"Scenario '{scenario_name}' loaded in preview mode; {msg}")
+                return True, f"Scenario '{scenario_name}' loaded in preview mode; {msg}"
+            self._log_local_action("load", f"Scenario '{scenario_name}' loaded in preview mode")
+            return True, f"Scenario '{scenario_name}' loaded in preview mode"
+
         try:
             result = await self.execute_scpi_command(
-                f'SOURce1:AREGenerator:SCENario:FILE "{scenario_name}"'
+                self._registry_command("scenario.file", source_hw=1, scenario_name=scenario_name)
             )
             if result["ok"]:
-                self.selected_scenario = scenario_name
+                self.synced_to_instrument = True
                 self.current_playback_state = "loaded"
                 if replay_mode is not None:
                     ok, msg = await self.apply_scenario_playback_settings(replay_mode)
                     if not ok:
                         return False, f"Scenario loaded but replay mode failed: {msg}"
-                    return True, f"Scenario '{scenario_name}' loaded; {msg}"
-                return True, f"Scenario '{scenario_name}' loaded"
-            else:
-                return False, f"Load failed: {result.get('error', 'Unknown error')}"
+                    return True, f"Scenario '{scenario_name}' loaded and synced; {msg}"
+                return True, f"Scenario '{scenario_name}' loaded and synced"
+
+            # If device load fails, keep preview capability available.
+            self.synced_to_instrument = False
+            self.current_playback_state = "loaded"
+            fallback = f"Load on instrument failed: {result.get('error', 'Unknown error')}"
+            self._log_local_action("load-fallback", f"{fallback}; preview mode active")
+            return True, f"{fallback}. Preview mode active for '{scenario_name}'"
         except Exception as e:
-            return False, f"Load failed: {str(e)}"
+            self.synced_to_instrument = False
+            self.current_playback_state = "loaded"
+            self._log_local_action("load-fallback", f"Load exception: {str(e)}; preview mode active")
+            return True, f"Load on instrument failed ({str(e)}). Preview mode active for '{scenario_name}'"
 
     async def play(self) -> tuple[bool, str]:
         """Start scenario playback."""
+        if not self.selected_scenario:
+            return False, "No scenario selected"
+
+        if self.current_playback_state in {"not_loaded", "unknown"}:
+            loaded_ok, loaded_msg = await self.load_scenario(self.selected_scenario)
+            if not loaded_ok:
+                return False, loaded_msg
+
+        if not self._is_connected() or not self.synced_to_instrument:
+            self.current_playback_state = "playing"
+            self._log_local_action("play", "Preview playback started")
+            return True, "Preview playback started"
+
         try:
-            result = await self.execute_scpi_command("SOURce1:AREGenerator:SCENario:STARt")
+            result = await self.execute_scpi_command(self._registry_command("scenario.play", source_hw=1))
 
             if result["ok"]:
                 self.current_playback_state = "playing"
@@ -287,8 +359,15 @@ class ScenarioPlayerService:
 
     async def pause(self) -> tuple[bool, str]:
         """Pause scenario playback."""
+        if not self._is_connected() or not self.synced_to_instrument:
+            if self.current_playback_state != "playing":
+                return False, "Cannot pause: playback is not running"
+            self.current_playback_state = "paused"
+            self._log_local_action("pause", "Preview playback paused")
+            return True, "Preview playback paused"
+
         try:
-            result = await self.execute_scpi_command("SOURce1:AREGenerator:SCENario:PAUSe")
+            result = await self.execute_scpi_command(self._registry_command("scenario.pause", source_hw=1))
 
             if result["ok"]:
                 self.current_playback_state = "paused"
@@ -301,8 +380,13 @@ class ScenarioPlayerService:
 
     async def stop(self) -> tuple[bool, str]:
         """Stop scenario playback."""
+        if not self._is_connected() or not self.synced_to_instrument:
+            self.current_playback_state = "stopped"
+            self._log_local_action("stop", "Preview playback stopped")
+            return True, "Preview playback stopped"
+
         try:
-            result = await self.execute_scpi_command("SOURce1:AREGenerator:SCENario:STOP")
+            result = await self.execute_scpi_command(self._registry_command("scenario.stop", source_hw=1))
 
             if result["ok"]:
                 self.current_playback_state = "stopped"
@@ -316,12 +400,24 @@ class ScenarioPlayerService:
     async def restart(self) -> tuple[bool, str]:
         """Restart scenario playback (stop + play)."""
         try:
-            # Stop first
-            await self.stop()
+            if not self.selected_scenario:
+                return False, "No scenario selected"
 
-            # Small delay would be good here in real implementation
-            # Then play
-            return await self.play()
+            # Stop first
+            stop_ok, stop_msg = await self.stop()
+            if not stop_ok:
+                return False, f"Restart failed during stop: {stop_msg}"
+
+            # Reload selected scenario to reset position to start.
+            load_ok, load_msg = await self.load_scenario(self.selected_scenario)
+            if not load_ok:
+                return False, f"Restart failed during reload: {load_msg}"
+
+            # Then play from beginning.
+            play_ok, play_msg = await self.play()
+            if play_ok:
+                self._log_local_action("restart", f"Restarted from beginning: {self.selected_scenario}")
+            return play_ok, play_msg
 
         except Exception as e:
             return False, f"Restart failed: {str(e)}"
@@ -333,8 +429,10 @@ class ScenarioPlayerService:
         a known playback state.  Falls back to in-memory state on error.
         """
         try:
-            if self.scpi_service.transport.connected:
-                result = await self.execute_scpi_command("SOURce1:AREGenerator:SCENario:STATe?")
+            if self._is_connected() and self.synced_to_instrument:
+                result = await self.execute_scpi_command(
+                    self._registry_command("scenario.state", source_hw=1)
+                )
                 if result["ok"] and result.get("response"):
                     raw = str(result["response"]).strip().lower()
                     # Map instrument response strings to our playback states
@@ -367,8 +465,17 @@ class ScenarioPlayerService:
         cached list the selection still succeeds (the user may have typed the
         path manually or the list is stale).
         """
-        self.selected_scenario = scenario_name
-        return True, f"Scenario '{scenario_name}' selected"
+        resolved = next(
+            (
+                s.path
+                for s in self.cached_scenarios
+                if s.name == scenario_name or s.path == scenario_name
+            ),
+            scenario_name,
+        )
+        self.selected_scenario = resolved
+        self.synced_to_instrument = False
+        return True, f"Scenario '{resolved}' selected"
 
     async def next_scenario(self) -> tuple[bool, str]:
         """Select next scenario in list."""

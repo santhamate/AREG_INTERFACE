@@ -138,3 +138,37 @@ def test_upload_then_refresh_osi_dropdown_workflow(tmp_path: Path) -> None:
     files, op = svc.scan_remote_osi_files(cfg, remote_dir="/var/user")
     assert op.ok
     assert any(f.name == "new_scenario.osi" for f in files)
+
+
+def test_download_osi_file_to_workspace(tmp_path: Path) -> None:
+    remote_root = tmp_path / "remote"
+    remote_file_dir = remote_root / "var" / "user"
+    remote_file_dir.mkdir(parents=True)
+    (remote_file_dir / "capture.osi").write_bytes(b"osi-data")
+
+    local_dir = tmp_path / "workspace"
+    local_dir.mkdir()
+
+    svc = AregFileTransferService()
+    cfg = TransferConfig(protocol="mapped_folder", mapped_root=str(remote_root))
+
+    result = svc.download_osi_file(cfg, remote_path="/var/user/capture.osi", local_dir=str(local_dir), overwrite=False)
+    assert result.ok
+    assert result.local_path is not None
+    assert Path(result.local_path).exists()
+    assert Path(result.local_path).read_bytes() == b"osi-data"
+
+
+def test_download_osi_file_rejects_non_osi(tmp_path: Path) -> None:
+    remote_root = tmp_path / "remote"
+    remote_root.mkdir()
+    local_dir = tmp_path / "workspace"
+    local_dir.mkdir()
+
+    svc = AregFileTransferService()
+    cfg = TransferConfig(protocol="mapped_folder", mapped_root=str(remote_root))
+
+    result = svc.download_osi_file(cfg, remote_path="/var/user/readme.txt", local_dir=str(local_dir), overwrite=False)
+    assert result.ok is False
+    assert result.error is not None
+    assert ".osi" in result.error.lower()

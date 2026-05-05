@@ -1,0 +1,59 @@
+// Minimal OSI3 proto definitions for AREG800A scenario generation.
+// Field numbers match the official OSI v3.7.0 specification exactly.
+// Only the fields required by osi_utils.py are included.
+
+syntax = "proto2";
+
+option optimize_for = SPEED;
+
+package osi3;
+
+// Common: Timestamp (osi_common.proto field numbers)
+message Timestamp {
+    optional int64 seconds = 1;
+    optional uint32 nanos = 2;
+}
+
+// Common: Identifier (osi_common.proto field numbers)
+message Identifier {
+    optional uint64 value = 1;
+}
+
+// Common: Spherical3d (osi_common.proto field numbers)
+message Spherical3d {
+    optional double distance = 1;
+    optional double azimuth = 2;
+    optional double elevation = 3;
+}
+
+// Feature data: RadarDetection (osi_featuredata.proto field numbers)
+message RadarDetection {
+    // field 3: position (Spherical3d)
+    optional Spherical3d position = 3;
+    // field 5: radial_velocity (double, m/s, positive toward sensor)
+    optional double radial_velocity = 5;
+    // field 7: rcs (double, dBsm)
+    optional double rcs = 7;
+}
+
+// Feature data: RadarDetectionData (osi_featuredata.proto field numbers)
+message RadarDetectionData {
+    // field 2: repeated RadarDetection detection
+    repeated RadarDetection detection = 2;
+}
+
+// Feature data: FeatureData (osi_featuredata.proto field numbers)
+message FeatureData {
+    // field 2: repeated RadarDetectionData radar_sensor
+    repeated RadarDetectionData radar_sensor = 2;
+}
+
+// Top level: SensorData (osi_sensordata.proto field numbers)
+message SensorData {
+    // field 2: timestamp
+    optional Timestamp timestamp = 2;
+    // field 5: sensor_id
+    optional Identifier sensor_id = 5;
+    // field 26: feature_data
+    optional FeatureData feature_data = 26;
+}

@@ -101,10 +101,11 @@ A **complete, production-ready Scenario Generator feature** for the AREG800A rad
 
 ## Quick Start
 
-### 1. Install OSI3 (Optional)
-```bash
-pip install osi3
-```
+### 1. Install OSI Python Bindings (Optional)
+
+The import module is `osi3`, but there is no PyPI package named `osi3`.
+Follow the official setup guide:
+https://opensimulationinterface.github.io/osi-antora-generator/asamosi/latest/interface/setup/setting_up_osi_python.html
 
 ### 2. Start Backend
 ```bash

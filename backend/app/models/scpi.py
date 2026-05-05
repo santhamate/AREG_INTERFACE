@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -51,7 +51,7 @@ class CommandRequest(BaseModel):
 
 class CommandResponse(BaseModel):
     command: str
-    command_type: Literal["query", "write", "empty"] = "write"
+    command_type: Literal["query", "binary-query", "write", "action", "empty"] = "write"
     response: str | None = None
     message: str | None = None
     ok: bool
@@ -78,6 +78,11 @@ class HardcopyResponse(BaseModel):
     file_path: str | None = None
     file_format: str | None = None
     bytes_written: int = 0
+    payload_bytes: int = 0
+    detected_type: str | None = None
+    validation_ok: bool = False
+    diagnostics: dict[str, Any] | None = None
+    log: list[dict[str, Any]] = Field(default_factory=list)
     transport: str | None = None
     message: str | None = None
     error: str | None = None
@@ -164,6 +169,30 @@ class AzimuthSweepRequest(BaseModel):
     scenario_name: str = "azimuth_sweep"
 
 
+class ConstantEchoPowerRequest(BaseModel):
+    """Request to generate a constant echo power scenario.
+
+    RCS is compensated per-step to maintain constant received echo power at the
+    radar receiver via the R⁴ radar range equation:
+
+        RCS(R) [dBsm] = ref_rcs_dbsm + 40 * log10(R / ref_range_m)
+    """
+    output_dir: str = "./scenarios"
+    output_filename: str | None = None
+    sensor_id: int = 1
+    update_interval_s: float = 0.1
+    start_range_m: float = 120.0
+    stop_range_m: float = 20.0
+    radial_velocity_mps: float = -10.0
+    ref_rcs_dbsm: float = 10.0
+    ref_range_m: float = 100.0
+    azimuth_deg: float = 0.0
+    elevation_deg: float = 0.0
+    rcs_min_dbsm: float = -30.0
+    rcs_max_dbsm: float = 60.0
+    scenario_name: str = "constant_echo_power"
+
+
 class ScenarioPreview(BaseModel):
     """Preview metadata for a generated scenario."""
     duration_s: float
@@ -181,6 +210,12 @@ class ScenarioPreview(BaseModel):
     warnings: list[str] = []
 
 
+class RcsTableEntry(BaseModel):
+    """Single entry in a RCS compensation table."""
+    range_m: float
+    rcs_dbsm: float
+
+
 class GenerationResponse(BaseModel):
     """Response from scenario generation."""
     ok: bool
@@ -188,6 +223,7 @@ class GenerationResponse(BaseModel):
     message_count: int = 0
     duration_s: float = 0.0
     preview: ScenarioPreview | None = None
+    rcs_table: list[RcsTableEntry] | None = None
     error: str | None = None
 
 
@@ -197,6 +233,29 @@ class GeneratorStatusResponse(BaseModel):
     osi_error: str | None = None
     last_generated_file: str | None = None
     last_preview: ScenarioPreview | None = None
+
+
+class SimulationOverviewResponse(BaseModel):
+    """Aggregated snapshot of AREG800A simulation state for the overview panel."""
+    # Connection
+    connected: bool = False
+    host: str | None = None
+    port: int | None = None
+    transport: str = "unknown"
+    # Playback
+    playback_state: str = "unknown"
+    current_scenario: str | None = None
+    replay_mode: str = "UNKNOWN"
+    # Generator
+    total_generated: int = 0
+    last_generated_file: str | None = None
+    last_generated_template: str | None = None
+    # Command log
+    log_entry_count: int = 0
+    last_command: str | None = None
+    last_command_ok: bool | None = None
+    # Metadata
+    timestamp: str = ""
 
 
 class ScenarioValidationRequest(BaseModel):
@@ -352,6 +411,14 @@ class FileTransferDownloadRequest(BaseModel):
     overwrite: bool = False
 
 
+class ScenarioWorkspaceDownloadRequest(BaseModel):
+    config: FileTransferConfigModel
+    remote_path: str
+    local_dir: str = "./scenarios"
+    overwrite: bool = False
+    inspect_after_download: bool = True
+
+
 class FileTransferRenameRequest(BaseModel):
     config: FileTransferConfigModel
     remote_path: str
@@ -395,6 +462,19 @@ class FileTransferResultResponse(BaseModel):
     remote_path: str | None = None
     bytes_transferred: int = 0
     duration: float = 0.0
+    error: str | None = None
+
+
+class ScenarioWorkspaceDownloadResponse(BaseModel):
+    ok: bool
+    message: str | None = None
+    local_path: str | None = None
+    remote_path: str | None = None
+    bytes_transferred: int = 0
+    duration: float = 0.0
+    validation_ok: bool = False
+    size_bytes: int = 0
+    message_count: int = 0
     error: str | None = None
 
 
