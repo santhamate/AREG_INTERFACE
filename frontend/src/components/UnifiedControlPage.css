@@ -287,6 +287,19 @@
   white-space: nowrap;
 }
 
+.ucp-auto-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid rgba(59, 130, 246, 0.5);
+  border-radius: 999px;
+  background: rgba(30, 64, 175, 0.18);
+  color: #93c5fd;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .ucp-remote-field {
   display: flex;
   align-items: center;
@@ -689,6 +702,153 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   overflow: hidden;
+}
+
+/* ========== Two-column: [Sim Overview + Player] | [Log] ========== */
+
+/* Player controls inset (merged below SimulationOverview inside same Section) */
+.ucp-player-inset {
+  border-top: 1px solid var(--border);
+  margin-top: 12px;
+  padding-top: 12px;
+}
+
+.ucp-player-log-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: stretch;
+}
+
+@media (max-width: 900px) {
+  .ucp-player-log-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ucp-sim-player-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ucp-log-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* ---- Log panel (inline, always visible) ---- */
+.ucp-log-panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 220px;
+}
+
+.ucp-log-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.ucp-log-list--fill {
+  flex: 1;
+  overflow-y: auto;
+  /* Override any fixed height set by the base class */
+  max-height: unset !important;
+}
+
+.ucp-storage-panel-body {
+  overflow: visible;
+}
+
+/* ========== Hardcopy / Screenshot panel ========== */
+
+.ucp-hcopy-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ucp-hcopy-row {
+  display: flex;
+  flex-direction: row;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.ucp-hcopy-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-label, #aaa);
+  flex: 1;
+  min-width: 140px;
+}
+
+.ucp-hcopy-check-label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.ucp-hcopy-sub {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--bg-surface2, rgba(255,255,255,0.03));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+}
+
+.ucp-hcopy-info-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  background: var(--bg-surface3, rgba(0,0,0,0.12));
+  border-radius: var(--radius-sm, 6px);
+  font-size: 0.82rem;
+}
+
+.ucp-hcopy-info-item {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.ucp-hcopy-info-label {
+  min-width: 80px;
+  color: var(--color-muted, #888);
+  flex-shrink: 0;
+}
+
+.ucp-hcopy-actions {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 4px;
 }
 
 /* ---------- Scroll helpers ---------- */

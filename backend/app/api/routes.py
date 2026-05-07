@@ -15,10 +15,15 @@ from backend.app.core.scenario_compiler import ScenarioCompileError, ScenarioCom
 from backend.app.core.scpi_service import ScpiService
 from backend.app.core.scenario_player import ScenarioPlayerService
 from backend.app.core.hardcopy_service import HardcopyService
+from backend.app.core.hcopy_manager import HCopyManager
 from backend.app.core.scenario_generator_service import ScenarioGeneratorService
 from backend.app.core.device_file_service import DeviceFileService
 from backend.app.core.file_transfer_manager import AregFileTransferService, TransferConfig
 from backend.app.core.scenario_inspector_service import ScenarioInspectorService
+from backend.app.core.memory_manager import MemoryManager
+from backend.app.core.scenario_manager import ScenarioManager
+from backend.app.core.storage_scanner import StorageScanner
+from backend.app.core.scenario_upload_manager import ScenarioUploadManager
 from backend.app.models.areg import (
     AregCommandLibraryResponse,
     AregCommandStep,
@@ -93,9 +98,14 @@ areg_controller = AregSocketController()
 command_registry = CommandRegistryService()
 scenario_player_service = ScenarioPlayerService(service, command_registry=command_registry)
 hardcopy_service = HardcopyService(service)
+hcopy_manager = HCopyManager(service)
 generator_service = ScenarioGeneratorService()
 device_file_service = DeviceFileService(service)
 file_transfer_service = AregFileTransferService()
+memory_manager = MemoryManager(service, command_registry=command_registry)
+scenario_manager = ScenarioManager(service, command_registry=command_registry)
+storage_scanner = StorageScanner(memory_manager)
+scenario_upload_manager = ScenarioUploadManager(memory_manager)
 scenario_inspector_service = ScenarioInspectorService(
     project_root=Path(__file__).resolve().parents[3],
     transfer_service=file_transfer_service,
@@ -186,6 +196,7 @@ async def disconnect_session() -> SessionState:
 async def simulation_overview() -> SimulationOverviewResponse:
     """Aggregate snapshot of AREG800A simulation state for the overview panel."""
     from datetime import datetime
+    from pathlib import Path as _Path
 
     session = service.session_state()
     cmd_logs = scenario_player_service.logger.get_all()
@@ -194,13 +205,30 @@ async def simulation_overview() -> SimulationOverviewResponse:
     last_gen = gen_logs[0] if gen_logs else None
     total_gen = len(generator_service.state.generation_logs)
 
+    current_scenario = scenario_player_service.selected_scenario
+    local_scenario_path: str | None = None
+    if current_scenario:
+        # Try to find the matching file in the local scenarios/ directory by basename.
+        basename = _Path(current_scenario.replace("\\", "/")).name
+        candidate = _Path("scenarios") / basename
+        if candidate.exists() and candidate.is_file():
+            local_scenario_path = str(candidate)
+        else:
+            # Also check .scenario_cache/ by SHA1 key (populated by FTP downloads).
+            import hashlib as _hashlib
+            digest = _hashlib.sha1(current_scenario.encode()).hexdigest()
+            suffix = _Path(current_scenario).suffix or ".osi"
+            cache_candidate = _Path(".scenario_cache") / f"{digest}{suffix}"
+            if cache_candidate.exists() and cache_candidate.is_file():
+                local_scenario_path = str(cache_candidate)
+
     return SimulationOverviewResponse(
         connected=session.connected,
         host=session.host,
         port=session.port,
         transport=session.transport,
         playback_state=str(scenario_player_service.current_playback_state),
-        current_scenario=scenario_player_service.selected_scenario,
+        current_scenario=current_scenario,
         replay_mode=str(scenario_player_service.current_replay_mode),
         total_generated=total_gen,
         last_generated_file=last_gen.get("output_filename") if last_gen else None,
@@ -209,6 +237,7 @@ async def simulation_overview() -> SimulationOverviewResponse:
         last_command=last_cmd.command if last_cmd else None,
         last_command_ok=last_cmd.ok if last_cmd else None,
         timestamp=datetime.now().isoformat(timespec="seconds"),
+        local_scenario_path=local_scenario_path,
     )
 
 
@@ -414,54 +443,208 @@ async def open_hardcopy_file(payload: dict[str, str]) -> dict[str, object]:
 
 
 # ============================================================================
+# HCOPy Manager Endpoints (manual-aligned HCOPy subsystem)
+# ============================================================================
+
+
+@router.get("/hcopy/settings")
+async def hcopy_get_settings() -> dict[str, object]:
+    """Return current cached HCOPy settings snapshot."""
+    return {"ok": True, **hcopy_manager.settings_snapshot()}
+
+
+@router.post("/hcopy/format")
+async def hcopy_set_format(payload: dict[str, str]) -> dict[str, object]:
+    """:HCOPy:DEVice:LANGuage <format>. Allowed: PNG, BMP, JPG, XPM."""
+    fmt = (payload.get("format") or "").strip().upper()
+    ok, err = await hcopy_manager.set_format(fmt)
+    return {"ok": ok, "format": fmt, "error": err}
+
+
+@router.post("/hcopy/region")
+async def hcopy_set_region(payload: dict[str, str]) -> dict[str, object]:
+    """:HCOPy:REGion <region>. Allowed: ALL, DIALog."""
+    region = (payload.get("region") or "").strip()
+    ok, err = await hcopy_manager.set_region(region)
+    return {"ok": ok, "region": region.upper(), "error": err}
+
+
+@router.post("/hcopy/auto-naming")
+async def hcopy_set_auto_naming(payload: dict[str, object]) -> dict[str, object]:
+    """:HCOPy:FILE:NAME:AUTO:STATe <0|1>."""
+    enabled = bool(payload.get("enabled", True))
+    ok, err = await hcopy_manager.set_auto_naming_enabled(enabled)
+    return {"ok": ok, "auto_naming": enabled, "error": err}
+
+
+@router.post("/hcopy/filename")
+async def hcopy_set_filename(payload: dict[str, str]) -> dict[str, object]:
+    """:HCOPy:FILE:NAME "<path>". Used when automatic naming is disabled."""
+    path = (payload.get("path") or "").strip()
+    ok, err = await hcopy_manager.set_manual_filename(path)
+    return {"ok": ok, "path": path, "error": err}
+
+
+@router.post("/hcopy/auto-directory")
+async def hcopy_set_auto_directory(payload: dict[str, str]) -> dict[str, object]:
+    """:HCOPy:FILE:NAME:AUTO:DIRectory "<directory>"."""
+    directory = (payload.get("directory") or "/var/user").strip()
+    ok, err = await hcopy_manager.set_auto_directory(directory)
+    return {"ok": ok, "directory": directory, "error": err}
+
+
+@router.post("/hcopy/auto-directory/clear")
+async def hcopy_clear_auto_directory() -> dict[str, object]:
+    """:HCOPy:FILE:NAME:AUTO:DIRectory:CLEar (event, DANGEROUS).
+
+    Caller must have shown a confirmation dialog before hitting this endpoint.
+    Deletes all .bmp/.jpg/.png/.xpm files in the auto-naming directory.
+    """
+    ok, err = await hcopy_manager.clear_auto_directory()
+    return {"ok": ok, "error": err}
+
+
+@router.post("/hcopy/prefix-enabled")
+async def hcopy_set_prefix_enabled(payload: dict[str, object]) -> dict[str, object]:
+    """:HCOPy:FILE:NAME:AUTO:FILE:PREFix:STATe <0|1>."""
+    enabled = bool(payload.get("enabled", True))
+    ok, err = await hcopy_manager.set_prefix_enabled(enabled)
+    return {"ok": ok, "prefix_enabled": enabled, "error": err}
+
+
+@router.post("/hcopy/prefix")
+async def hcopy_set_prefix(payload: dict[str, str]) -> dict[str, object]:
+    """:HCOPy:FILE:NAME:AUTO:FILE:PREFix "<prefix>"."""
+    prefix = payload.get("prefix") or ""
+    ok, err = await hcopy_manager.set_prefix(prefix)
+    return {"ok": ok, "prefix": prefix, "error": err}
+
+
+@router.post("/hcopy/date-components")
+async def hcopy_set_date_components(payload: dict[str, object]) -> dict[str, object]:
+    """Set year/month/day state flags for automatic naming.
+
+    Payload: { year: bool, month: bool, day: bool }
+    Only the fields present in the payload are sent to the instrument.
+    """
+    results: dict[str, object] = {"ok": True, "errors": []}
+    errors: list[str] = []
+
+    if "year" in payload:
+        ok, err = await hcopy_manager.set_year_enabled(bool(payload["year"]))
+        if not ok:
+            errors.append(f"year: {err}")
+
+    if "month" in payload:
+        ok, err = await hcopy_manager.set_month_enabled(bool(payload["month"]))
+        if not ok:
+            errors.append(f"month: {err}")
+
+    if "day" in payload:
+        ok, err = await hcopy_manager.set_day_enabled(bool(payload["day"]))
+        if not ok:
+            errors.append(f"day: {err}")
+
+    if errors:
+        results["ok"] = False
+        results["errors"] = errors
+    return results
+
+
+@router.get("/hcopy/auto-number")
+async def hcopy_get_auto_number() -> dict[str, object]:
+    """:HCOPy:FILE:NAME:AUTO:FILE:NUMBer? – query next auto file number."""
+    number, err = await hcopy_manager.get_auto_number()
+    return {"ok": err is None, "number": number, "error": err}
+
+
+@router.get("/hcopy/auto-filename")
+async def hcopy_get_auto_filename() -> dict[str, object]:
+    """:HCOPy:FILE:NAME:AUTO:FILE? – query current auto-generated filename."""
+    filename, err = await hcopy_manager.get_auto_filename()
+    return {"ok": err is None, "filename": filename, "error": err}
+
+
+@router.get("/hcopy/auto-path")
+async def hcopy_get_auto_path() -> dict[str, object]:
+    """:HCOPy:FILE:NAME:AUTO? – query full auto-generated hardcopy path."""
+    path, err = await hcopy_manager.get_auto_full_path()
+    return {"ok": err is None, "path": path, "error": err}
+
+
+@router.post("/hcopy/execute")
+async def hcopy_execute() -> dict[str, object]:
+    """:HCOPy:EXECute – save screenshot to instrument file system.
+
+    Event command; no response body expected. After execution, queries auto
+    filename/path when auto naming is enabled.
+    """
+    try:
+        result = await hcopy_manager.execute_to_file()
+        # Optionally refresh memory manager directory listing (fire-and-forget).
+        if result.get("ok") and result.get("auto_directory"):
+            try:
+                await memory_manager.list_directory(str(result["auto_directory"]))
+            except Exception:
+                pass  # Refresh is best-effort.
+        return result
+    except Exception as ex:
+        raise HTTPException(status_code=500, detail=str(ex)) from ex
+
+
+@router.post("/hcopy/capture-data")
+async def hcopy_capture_data(payload: dict[str, object] | None = None) -> dict[str, object]:
+    """:HCOPy:DATA? – capture screenshot binary data directly to PC.
+
+    Receives SCPI block data, parses it, saves to local screenshots/ directory.
+    Payload optional fields: local_dir (str), local_filename (str), timeout_ms (int).
+    """
+    payload = payload or {}
+    local_dir = str(payload.get("local_dir") or "").strip() or None
+    local_filename = str(payload.get("local_filename") or "").strip() or None
+    timeout_ms = int(payload.get("timeout_ms") or 10000)
+    try:
+        result = await hcopy_manager.capture_data(
+            local_dir=local_dir,
+            local_filename=local_filename,
+            timeout_ms=timeout_ms,
+        )
+        return result
+    except Exception as ex:
+        raise HTTPException(status_code=500, detail=str(ex)) from ex
+
+
+# ============================================================================
 # Scenario Player Endpoints
 # ============================================================================
 
 
 @router.post("/scenario/scan", response_model=ScanScenariosResponse)
 async def scan_scenarios(payload: ScanScenariosRequest) -> ScanScenariosResponse:
-    """Scan for available scenarios: local ./scenarios/ directory + instrument (when connected)."""
-    from backend.app.models.scenario import ScenarioFile
-    import datetime
-
+    """Scan scenario library from instrument via documented SCENario:FILE:CATalog?."""
     try:
-        # --- Local scan: always include .osi files from ./scenarios/ ---
-        local_scenarios: list[ScenarioFile] = []
-        local_dir = Path("scenarios")
-        if local_dir.exists():
-            for osi_file in sorted(local_dir.glob("*.osi")):
-                stat = osi_file.stat()
-                local_scenarios.append(ScenarioFile(
-                    name=osi_file.name,
-                    path=str(osi_file.resolve()),
-                    extension=".osi",
-                    size_bytes=stat.st_size,
-                    modified_time=datetime.datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds"),
-                    is_loadable=True,
-                ))
+        if not service.transport.connected:
+            return ScanScenariosResponse(ok=False, scenarios=[], total_count=0, error="Device not connected")
 
-        # --- Instrument scan: only when connected ---
-        instrument_scenarios: list[ScenarioFile] = []
-        instrument_error: str | None = None
-        if scenario_player_service.scpi_service.transport.connected:
-            instrument_scenarios, instrument_error = await scenario_player_service.scan_scenarios(
-                force_refresh=payload.force_refresh
+        entries, error = await scenario_manager.catalog_scenarios()
+        if error:
+            return ScanScenariosResponse(ok=False, scenarios=[], total_count=0, error=error)
+
+        pattern = (payload.search_pattern or "").strip().lower()
+        scenarios = [
+            ScenarioFile(
+                name=e.name,
+                path=e.path,
+                extension=e.extension,
+                size_bytes=e.size_bytes,
+                is_loadable=e.extension in {".osi", ".sm"},
             )
+            for e in entries
+            if not pattern or pattern in e.name.lower()
+        ]
 
-        # Merge: local first, then instrument (deduplicate by name)
-        seen_names: set[str] = {s.name for s in local_scenarios}
-        for s in instrument_scenarios:
-            if s.name not in seen_names:
-                local_scenarios.append(s)
-                seen_names.add(s.name)
-
-        all_scenarios = local_scenarios
-        scenario_player_service.cached_scenarios = all_scenarios
-        # Surface instrument error only if no local results either
-        if instrument_error and not all_scenarios:
-            return ScanScenariosResponse(ok=False, scenarios=[], total_count=0, error=instrument_error)
-
-        return ScanScenariosResponse(ok=True, scenarios=all_scenarios, total_count=len(all_scenarios))
+        scenario_player_service.cached_scenarios = scenarios
+        return ScanScenariosResponse(ok=True, scenarios=scenarios, total_count=len(scenarios))
     except Exception as ex:
         raise HTTPException(status_code=500, detail=str(ex)) from ex
 
@@ -582,6 +765,16 @@ async def stop_scenario() -> dict[str, object]:
         raise HTTPException(status_code=500, detail=str(ex)) from ex
 
 
+@router.post("/scenario/reset")
+async def reset_scenario() -> dict[str, object]:
+    """Reset scenario playback."""
+    try:
+        ok, error = await scenario_manager.reset()
+        return {"ok": ok, "message": "Playback reset" if ok else None, "error": error}
+    except Exception as ex:
+        raise HTTPException(status_code=500, detail=str(ex)) from ex
+
+
 @router.post("/scenario/restart")
 async def restart_scenario() -> dict[str, object]:
     """Restart scenario playback."""
@@ -617,6 +810,46 @@ async def get_scenario_status() -> ScenarioPlaybackStatus:
     """Get current scenario playback status."""
     try:
         return await scenario_player_service.refresh_playback_state()
+    except Exception as ex:
+        raise HTTPException(status_code=500, detail=str(ex)) from ex
+
+
+@router.get("/scenario/progress")
+async def get_scenario_progress() -> dict[str, object]:
+    """Get scenario playback progress via SCENario:PROGress?."""
+    try:
+        progress, error = await scenario_manager.get_progress()
+        return {"ok": error is None, "progress": progress, "error": error}
+    except Exception as ex:
+        raise HTTPException(status_code=500, detail=str(ex)) from ex
+
+
+@router.get("/scenario/position/actual")
+async def get_scenario_actual_position() -> dict[str, object]:
+    """Get actual scenario position via SCENario:POSition:ACTual?."""
+    try:
+        position, error = await scenario_manager.get_actual_position()
+        return {"ok": error is None, "position": position, "error": error}
+    except Exception as ex:
+        raise HTTPException(status_code=500, detail=str(ex)) from ex
+
+
+@router.post("/scenario/position/start")
+async def set_scenario_start_position(payload: dict[str, int]) -> dict[str, object]:
+    value = int(payload.get("value", 0))
+    try:
+        ok, error = await scenario_manager.set_start_position(value)
+        return {"ok": ok, "value": value, "error": error}
+    except Exception as ex:
+        raise HTTPException(status_code=500, detail=str(ex)) from ex
+
+
+@router.post("/scenario/position/stop")
+async def set_scenario_stop_position(payload: dict[str, int]) -> dict[str, object]:
+    value = int(payload.get("value", 0))
+    try:
+        ok, error = await scenario_manager.set_stop_position(value)
+        return {"ok": ok, "value": value, "error": error}
     except Exception as ex:
         raise HTTPException(status_code=500, detail=str(ex)) from ex
 
@@ -920,22 +1153,21 @@ async def get_transfer_logs(limit: int = 50) -> dict[str, object]:
 
 @router.post("/device/files/scan", response_model=ScanDeviceFilesResponse)
 async def scan_device_files(payload: ScanDeviceFilesRequest) -> ScanDeviceFilesResponse:
-    """Scan the connected device file system for .osi scenario files.
-
-    Uses SCPI MMEMory:CATalog? (or AREG-specific catalog command) to list
-    files in the target directory and filters to only .osi entries.
-    """
+    """Scan connected device storage using MMEMory:CATalog? for .osi/.sm files."""
     try:
-        files, error = await device_file_service.scan_device_osi_files(
-            directory=payload.directory,
-            force_refresh=payload.force_refresh,
-        )
+        directory = payload.directory or "/var/user"
+        entries, error = await memory_manager.list_directory(directory)
+        files = [
+            e
+            for e in entries
+            if e.kind != "DIR" and e.extension.lower() in {".osi", ".sm"}
+        ]
         file_models = [
             DeviceOsiFileModel(
                 name=f.name,
-                path=f.path,
-                size_bytes=f.size_bytes,
-                modified_time=f.modified_time,
+                path=f.full_path,
+                size_bytes=f.size,
+                modified_time=None,
             )
             for f in files
         ]
@@ -952,13 +1184,13 @@ async def scan_device_files(payload: ScanDeviceFilesRequest) -> ScanDeviceFilesR
 
 @router.get("/device/files/discover", response_model=DiscoverDeviceDirectoriesResponse)
 async def discover_device_directories() -> DiscoverDeviceDirectoriesResponse:
-    """Discover reachable scenario directories on the connected device."""
+    """Discover visible storage roots using MMEMory catalog queries only."""
     try:
-        directories, error = await device_file_service.discover_device_directories()
+        directories, errors = await storage_scanner.discover_visible_roots()
         return DiscoverDeviceDirectoriesResponse(
-            ok=error is None,
+            ok=bool(directories),
             directories=directories,
-            error=error,
+            error=None if directories else (errors[0] if errors else "No visible storage paths discovered"),
         )
     except Exception as ex:
         raise HTTPException(status_code=500, detail=str(ex)) from ex
@@ -973,14 +1205,29 @@ async def upload_device_file(payload: UploadOsiFileRequest) -> UploadOsiFileResp
     after a successful upload.
     """
     try:
+        remote_path = payload.remote_path
+        if not remote_path:
+            auto_remote, auto_error = await device_file_service.resolve_upload_remote_path(
+                filename=Path(payload.local_path).name,
+                preferred_directory=payload.preferred_directory,
+            )
+            if auto_error or not auto_remote:
+                return UploadOsiFileResponse(
+                    ok=False,
+                    local_path=payload.local_path,
+                    remote_path=None,
+                    error=auto_error or "No reachable destination directory found",
+                )
+            remote_path = auto_remote
+
         result = await device_file_service.upload_osi_file(
             local_path=payload.local_path,
-            remote_path=payload.remote_path,
+            remote_path=remote_path,
         )
         return UploadOsiFileResponse(
             ok=result.ok,
             local_path=payload.local_path,
-            remote_path=result.remote_path or payload.remote_path,
+            remote_path=result.remote_path or remote_path,
             bytes_transferred=result.bytes_transferred,
             error=result.error,
         )
@@ -1011,21 +1258,22 @@ async def list_device_files() -> ScanDeviceFilesResponse:
 @router.post("/device/files/upload-browser", response_model=UploadOsiFileResponse)
 async def upload_device_file_from_browser(
     file: UploadFile = File(...),
-    remote_path: str = Form(...),
+    remote_path: str | None = Form(default=None),
+    preferred_directory: str | None = Form(default=None),
 ) -> UploadOsiFileResponse:
-    """Upload a .osi file sent directly from the browser to the connected device.
+    """Upload a .osi/.sm file sent directly from the browser to the connected device.
 
     The browser sends the file as multipart/form-data.  The backend reads the
     bytes in memory and forwards them to the device via SCPI MMEMory:DATA.
     """
     try:
         filename = file.filename or "upload.osi"
-        if not filename.lower().endswith(".osi"):
+        if not (filename.lower().endswith(".osi") or filename.lower().endswith(".sm")):
             return UploadOsiFileResponse(
                 ok=False,
                 local_path=filename,
                 remote_path=remote_path,
-                error="File must have a .osi extension",
+                error="File must have a .osi or .sm extension",
             )
         if not service.transport.connected:
             return UploadOsiFileResponse(
@@ -1044,17 +1292,57 @@ async def upload_device_file_from_browser(
                 error="Uploaded file is empty",
             )
 
-        upload_result = await device_file_service.upload_osi_bytes(data=data, remote_path=remote_path)
+        target_path = remote_path
+        if not target_path:
+            auto_remote, auto_error = await device_file_service.resolve_upload_remote_path(
+                filename=filename,
+                preferred_directory=preferred_directory,
+            )
+            if auto_error or not auto_remote:
+                return UploadOsiFileResponse(
+                    ok=False,
+                    local_path=filename,
+                    remote_path=None,
+                    error=auto_error or "No reachable destination directory found",
+                )
+            target_path = auto_remote
+
+        upload_result = await device_file_service.upload_osi_bytes(data=data, remote_path=target_path)
 
         return UploadOsiFileResponse(
             ok=upload_result.ok,
             local_path=filename,
-            remote_path=upload_result.remote_path or remote_path,
+            remote_path=upload_result.remote_path or target_path,
             bytes_transferred=upload_result.bytes_transferred,
             error=upload_result.error,
         )
     except Exception as ex:
         raise HTTPException(status_code=500, detail=str(ex)) from ex
+
+
+@router.post("/device/files/copy-to-user")
+async def copy_device_file_to_user(payload: dict[str, str]) -> dict[str, object]:
+    """Copy a file from visible storage to /var/user (or subfolder) using MMEMory:COPY."""
+    source_path = (payload.get("source_path") or "").strip()
+    target_dir = (payload.get("target_dir") or "/var/user").strip()
+    if not source_path:
+        return {"ok": False, "error": "source_path is required"}
+
+    copied_path, error = await scenario_upload_manager.copy_to_user_directory(source_path, target_dir)
+    if error:
+        return {"ok": False, "error": error, "source_path": source_path, "target_dir": target_dir}
+
+    # Refresh by querying target directory and scenario catalog as requested.
+    _entries, _scan_error = await memory_manager.list_directory(target_dir)
+    _catalog, _catalog_error = await scenario_manager.catalog_scenarios()
+
+    return {
+        "ok": True,
+        "source_path": source_path,
+        "target_dir": target_dir,
+        "copied_path": copied_path,
+        "message": f"Copied to {copied_path}",
+    }
 
 
 # ============================================================================

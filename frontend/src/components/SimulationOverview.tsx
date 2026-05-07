@@ -18,6 +18,7 @@ interface OverviewData {
   last_command: string | null;
   last_command_ok: boolean | null;
   timestamp: string;
+  local_scenario_path: string | null;
 }
 
 interface ScenarioInspectorSample {
@@ -42,10 +43,23 @@ interface ScenarioInspectorObject {
 
 interface ScenarioDecodeResult {
   ok: boolean;
+  scenario_name?: string | null;
+  loaded_scenario_path?: string | null;
+  file_path?: string | null;
+  remote_path?: string | null;
+  local_cached_path?: string | null;
+  format_detected?: string | null;
+  time_start?: number | null;
+  time_end?: number | null;
+  timestep_count?: number | null;
+  warnings?: string[];
+  errors?: string[];
   duration: number | null;
   object_count: number;
   objects: ScenarioInspectorObject[];
 }
+
+type PreviewState = "stopped" | "playing" | "paused";
 
 const STATE_COLORS: Record<string, string> = {
   playing:    "#10b981",
@@ -71,11 +85,20 @@ function basename(path: string): string {
   return path.replace(/\\/g, "/").split("/").pop() ?? path;
 }
 
+function joinScenarioLocalFallback(remotePath: string | null): string | null {
+  if (!remotePath) return null;
+  const base = basename(remotePath);
+  if (!base) return null;
+  return `scenarios/${base}`;
+}
+
 export default function SimulationOverview() {
   const [data, setData] = useState<OverviewData | null>(null);
   const [decode, setDecode] = useState<ScenarioDecodeResult | null>(null);
   const [playbackSec, setPlaybackSec] = useState(0);
   const [manualPreview, setManualPreview] = useState(false);
+  const [previewState, setPreviewState] = useState<PreviewState>("stopped");
+  const [previewLoop, setPreviewLoop] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [lastScenario, setLastScenario] = useState<string | null>(null);
@@ -93,31 +116,86 @@ export default function SimulationOverview() {
     }
   };
 
+  const deriveDuration = (decoded: ScenarioDecodeResult | null): number => {
+    if (!decoded) return 0;
+    if ((decoded.duration ?? 0) > 0) return decoded.duration ?? 0;
+    let maxTs = 0;
+    for (const obj of decoded.objects ?? []) {
+      for (const s of obj.samples ?? []) {
+        const t = s.timestamp ?? 0;
+        if (Number.isFinite(t) && t > maxTs) maxTs = t;
+      }
+    }
+    return maxTs;
+  };
+
   const decodeScenario = async (scenarioPath: string | null) => {
-    if (!scenarioPath) {
+    const fallbackLocalPath = data?.local_scenario_path ?? joinScenarioLocalFallback(scenarioPath);
+    const decodePayload = {
+      remote_path: scenarioPath,
+      local_path: fallbackLocalPath,
+      force_redownload: false,
+      transfer_config: data?.connected && data?.host
+        ? {
+            protocol: "ftp",
+            host: data.host,
+            username: "instrument",
+            password: "instrument",
+            remote_dir: "/var/user/",
+            timeout_s: 15,
+            passive_mode: true,
+          }
+        : null,
+    };
+
+    const tryDecodeSelected = async () => {
+      if (!scenarioPath) return false;
+      const r = await fetch(`${API_BASE}/scenario/inspector/decode-selected`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(decodePayload),
+      });
+      if (!r.ok) return false;
+      const decoded = (await r.json()) as ScenarioDecodeResult;
+      setDecode(decoded);
+      if (!decoded.ok) return false;
+      const d = deriveDuration(decoded);
+      setPlaybackSec((prev) => (d > 0 ? Math.min(prev, d) : prev));
+      return true;
+    };
+
+    const tryDecodeLoaded = async () => {
+      const r = await fetch(`${API_BASE}/scenario/inspector/decode-loaded`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(decodePayload),
+      });
+      if (!r.ok) return false;
+      const decoded = (await r.json()) as ScenarioDecodeResult;
+      setDecode(decoded);
+      if (!decoded.ok) return false;
+      const d = deriveDuration(decoded);
+      setPlaybackSec((prev) => (d > 0 ? Math.min(prev, d) : prev));
+      return true;
+    };
+
+    if (!scenarioPath && !data?.connected) {
       setDecode(null);
       setPlaybackSec(0);
       return;
     }
+
     try {
-      const r = await fetch(`${API_BASE}/scenario/inspector/decode-selected`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ local_path: scenarioPath, force_redownload: false }),
-      });
-      if (!r.ok) {
-        return;
-      }
-      const decoded = (await r.json()) as ScenarioDecodeResult;
-      if (decoded.ok) {
-        setDecode(decoded);
-        setPlaybackSec((prev) => {
-          const duration = decoded.duration ?? 0;
-          return duration > 0 ? Math.min(prev, duration) : prev;
-        });
+      const selectedOk = await tryDecodeSelected();
+      if (!selectedOk) {
+        const loadedOk = await tryDecodeLoaded();
+        if (!loadedOk && !scenarioPath) {
+          setDecode(null);
+          setPlaybackSec(0);
+        }
       }
     } catch {
-      // Keep overview available even when decode endpoint is not ready.
+      // Keep overview available even when decode endpoints are not ready.
     }
   };
 
@@ -216,50 +294,71 @@ export default function SimulationOverview() {
 
   useEffect(() => {
     void decodeScenario(data?.current_scenario ?? null);
-  }, [data?.current_scenario]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.current_scenario, data?.local_scenario_path, data?.connected, data?.host]);
 
   useEffect(() => {
     const current = data?.current_scenario ?? null;
     if (current !== lastScenario) {
       setPlaybackSec(0);
+      setPreviewState("stopped");
       setLastScenario(current);
-      return;
     }
-
-    const lastCmd = (data?.last_command ?? "").toLowerCase();
-    if (lastCmd.includes("restart") || (data?.playback_state ?? "") === "loaded") {
-      setPlaybackSec(0);
-    }
-  }, [data?.current_scenario, data?.last_command, data?.playback_state, lastScenario]);
+  }, [data?.current_scenario, lastScenario]);
 
   useEffect(() => {
     if (manualPreview) {
       return;
     }
-    if ((data?.playback_state ?? "") !== "playing") {
+    if (previewState !== "playing") {
       return;
     }
-    const duration = decode?.duration ?? 0;
+    const duration = deriveDuration(decode);
     if (!(duration > 0)) {
-      // Avoid showing a fake, ever-increasing timer when decode duration is unknown.
       return;
     }
     const id = setInterval(() => {
       setPlaybackSec((prev) => {
         const next = prev + 0.1;
-        if ((data?.replay_mode ?? "UNKNOWN") === "LOOP") {
+        if (previewLoop) {
           return next > duration ? 0 : next;
         }
         return Math.min(next, duration);
       });
     }, 100);
     return () => clearInterval(id);
-  }, [data?.playback_state, data?.replay_mode, decode?.duration, manualPreview]);
+  }, [previewState, previewLoop, decode, manualPreview]);
 
-  const stateKey = data?.playback_state ?? "unknown";
+  useEffect(() => {
+    const duration = deriveDuration(decode);
+    if (previewState === "playing" && !previewLoop && duration > 0 && playbackSec >= duration) {
+      setPreviewState("paused");
+    }
+  }, [playbackSec, previewState, previewLoop, decode]);
+
+  const stateKey = previewState;
   const stateColor = STATE_COLORS[stateKey] ?? "#64748b";
   const stateLabel = STATE_LABELS[stateKey] ?? stateKey;
-  const duration = decode?.duration ?? 0;
+  const duration = deriveDuration(decode);
+  const hasDecodedScenario = (decode?.objects?.length ?? 0) > 0;
+  const loadedScenarioPath =
+    decode?.loaded_scenario_path
+    ?? decode?.file_path
+    ?? decode?.remote_path
+    ?? data?.current_scenario
+    ?? null;
+  const objectTotal = decode?.object_count ?? decode?.objects?.length ?? 0;
+  const sampleTotal = (decode?.objects ?? []).reduce((sum, obj) => sum + (obj.samples?.length ?? 0), 0);
+  const inferredTimeStart = (decode?.objects ?? []).flatMap((obj) => obj.samples ?? [])
+    .map((s) => s.timestamp)
+    .filter((t): t is number => typeof t === "number" && Number.isFinite(t))
+    .reduce((min, t) => Math.min(min, t), Number.POSITIVE_INFINITY);
+  const inferredTimeEnd = (decode?.objects ?? []).flatMap((obj) => obj.samples ?? [])
+    .map((s) => s.timestamp)
+    .filter((t): t is number => typeof t === "number" && Number.isFinite(t))
+    .reduce((max, t) => Math.max(max, t), Number.NEGATIVE_INFINITY);
+  const timeStart = Number.isFinite(decode?.time_start) ? (decode?.time_start as number) : (Number.isFinite(inferredTimeStart) ? inferredTimeStart : null);
+  const timeEnd = Number.isFinite(decode?.time_end) ? (decode?.time_end as number) : (Number.isFinite(inferredTimeEnd) ? inferredTimeEnd : null);
   const currentStates = (decode?.objects ?? [])
     .map((obj) => objectState(obj, playbackSec))
     .filter((v): v is NonNullable<typeof v> => v !== null)
@@ -339,15 +438,50 @@ export default function SimulationOverview() {
         </div>
 
         <div className="sim-stats-card">
-          <div className="sim-status-row">
-            <span className={`sim-dot ${data?.connected ? "on" : "off"}`} />
-            <span className="sim-val">{data?.connected ? `${data.host ?? "-"}:${data.port ?? "-"}` : "Offline"}</span>
+          <div className="sim-preview-header">
+            <span className="sim-preview-title">Scenario Preview Details</span>
             <span className="sim-state-badge" style={{ background: stateColor }}>{stateLabel}</span>
           </div>
           <div className="sim-stat-grid">
             <div className="sim-stat">
+              <span className="sim-label">Loaded Scenario</span>
+              <span className="sim-val" title={loadedScenarioPath ?? "-"}>
+                {loadedScenarioPath ? basename(loadedScenarioPath) : "-"}
+              </span>
+            </div>
+            <div className="sim-stat">
+              <span className="sim-label">Source Path</span>
+              <span className="sim-val" title={loadedScenarioPath ?? "-"}>
+                {loadedScenarioPath ?? "-"}
+              </span>
+            </div>
+            <div className="sim-stat">
+              <span className="sim-label">Format</span>
+              <span className="sim-val">{decode?.format_detected ?? "-"}</span>
+            </div>
+            <div className="sim-stat">
+              <span className="sim-label">Duration</span>
+              <span className="sim-val">{duration > 0 ? `${duration.toFixed(3)} s` : "-"}</span>
+            </div>
+            <div className="sim-stat">
+              <span className="sim-label">Time Start</span>
+              <span className="sim-val">{timeStart != null ? `${timeStart.toFixed(3)} s` : "-"}</span>
+            </div>
+            <div className="sim-stat">
+              <span className="sim-label">Time End</span>
+              <span className="sim-val">{timeEnd != null ? `${timeEnd.toFixed(3)} s` : "-"}</span>
+            </div>
+            <div className="sim-stat">
+              <span className="sim-label">Timestep Count</span>
+              <span className="sim-val">{decode?.timestep_count ?? "-"}</span>
+            </div>
+            <div className="sim-stat">
               <span className="sim-label">Object Count</span>
-              <span className="sim-val">{currentStates.length}</span>
+              <span className="sim-val">{objectTotal}</span>
+            </div>
+            <div className="sim-stat">
+              <span className="sim-label">Sample Count</span>
+              <span className="sim-val">{sampleTotal}</span>
             </div>
             <div className="sim-stat">
               <span className="sim-label">Azimuth</span>
@@ -378,6 +512,55 @@ export default function SimulationOverview() {
             <label className="sim-timeline-label">
               Preview Time {playbackSec.toFixed(2)} s
             </label>
+            <div className="sim-preview-controls" role="group" aria-label="Preview Controls">
+              <button
+                type="button"
+                className="sim-preview-btn play"
+                onClick={() => setPreviewState("playing")}
+                disabled={!hasDecodedScenario}
+              >
+                Preview Play
+              </button>
+              <button
+                type="button"
+                className="sim-preview-btn"
+                onClick={() => setPreviewState("paused")}
+                disabled={!hasDecodedScenario || previewState !== "playing"}
+              >
+                Preview Pause
+              </button>
+              <button
+                type="button"
+                className="sim-preview-btn stop"
+                onClick={() => {
+                  setPreviewState("stopped");
+                  setPlaybackSec(0);
+                }}
+                disabled={!hasDecodedScenario}
+              >
+                Preview Stop
+              </button>
+              <button
+                type="button"
+                className="sim-preview-btn"
+                onClick={() => {
+                  setPlaybackSec(0);
+                  setPreviewState("playing");
+                }}
+                disabled={!hasDecodedScenario}
+              >
+                Preview Restart
+              </button>
+              <label className="sim-preview-loop">
+                <input
+                  type="checkbox"
+                  checked={previewLoop}
+                  onChange={(e) => setPreviewLoop(e.target.checked)}
+                  disabled={!hasDecodedScenario}
+                />
+                Loop
+              </label>
+            </div>
             <input
               type="range"
               min={0}
@@ -389,11 +572,16 @@ export default function SimulationOverview() {
               onChange={(e) => setPlaybackSec(Number(e.target.value))}
             />
           </div>
-          <div className="sim-footnotes">
-            <span className="sim-count">Generated: {data?.total_generated ?? 0}</span>
-            <span className="sim-count">Log: {data?.log_entry_count ?? 0}</span>
-            {data?.last_generated_file && <span className="sim-label">Last: {basename(data.last_generated_file)}</span>}
-          </div>
+          {(decode?.warnings?.length ?? 0) > 0 && (
+            <div className="sim-footnotes">
+              <span className="sim-count">Warnings: {decode?.warnings?.join(" | ")}</span>
+            </div>
+          )}
+          {(decode?.errors?.length ?? 0) > 0 && (
+            <div className="sim-footnotes">
+              <span className="sim-footer-err">Decode Errors: {decode?.errors?.join(" | ")}</span>
+            </div>
+          )}
         </div>
       </div>
 

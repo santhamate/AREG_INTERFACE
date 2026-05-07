@@ -24,6 +24,9 @@ DEFAULT_SCAN_DIRECTORY = "/"
 # Common storage locations found on instruments. SD-like paths are included
 # so mounted cards can be discovered even when not visible under /osi.
 FALLBACK_OSI_DIRECTORIES = [
+    "./usb",
+    "./sd",
+    "./sdcard",
     "/osi",
     "/scenarios",
     "/areg",
@@ -90,39 +93,31 @@ class DeviceFileService:
         if not self.scpi_service.transport.connected:
             return [], "Device not connected"
 
-        target_dir = (directory or "").strip() or DEFAULT_SCAN_DIRECTORY
+        target_dir = self._normalize_remote_dir((directory or "").strip() or DEFAULT_SCAN_DIRECTORY)
+        last_error: str | None = None
 
-        # 1. Try AREG-specific catalog command
-        areg_cmd = f'SOURce1:AREGenerator:SCENario:FILE:CATalog? "{target_dir}"'
-        try:
-            result = await self.scpi_service.execute_with_classification(areg_cmd)
-            if result["ok"] and result.get("response"):
-                files = self._parse_catalog_response(str(result["response"]), target_dir)
-                if files:
+        for candidate_dir in self._directory_syntax_candidates(target_dir):
+            for cmd in self._catalog_commands(candidate_dir):
+                try:
+                    result = await self.scpi_service.execute_with_classification(cmd)
+                except ScpiTransportError as ex:
+                    last_error = f"Transport error during scan: {ex}"
+                    continue
+                except Exception as ex:
+                    last_error = f"Scan failed: {ex}"
+                    continue
+
+                if result["ok"] and result.get("response") is not None:
+                    files = self._parse_catalog_response(str(result["response"]), candidate_dir)
                     self._cached_files = files
+                    if not files:
+                        return [], None
                     return files, None
-        except Exception:
-            pass  # Fall through to generic command
 
-        # 2. Try generic MMEMory:CATalog?
-        mmem_cmd = f':MMEMory:CATalog? "{target_dir}"'
-        try:
-            result = await self.scpi_service.execute_with_classification(mmem_cmd)
-            if result["ok"] and result.get("response"):
-                files = self._parse_catalog_response(str(result["response"]), target_dir)
-                self._cached_files = files
-                if not files:
-                    return [], None  # Connected, empty directory
-                return files, None
-            if not result["ok"]:
-                error_msg = result.get("error") or "Scan failed"
-                return [], str(error_msg)
-        except ScpiTransportError as ex:
-            return [], f"Transport error during scan: {ex}"
-        except Exception as ex:
-            return [], f"Scan failed: {ex}"
+                if not result["ok"]:
+                    last_error = str(result.get("error") or "Scan failed")
 
-        return [], None
+        return [], last_error
 
     def _parse_catalog_response(self, response: str, base_dir: str) -> list[DeviceOsiFile]:
         """Parse SCPI MMEMory:CATalog? or AREG FILE:CATalog? response.
@@ -213,6 +208,9 @@ class DeviceFileService:
         value = path.strip().replace("\\", "/")
         if not value:
             return "/"
+        if value.startswith("./"):
+            normalized = re.sub(r"/{2,}", "/", value)
+            return normalized.rstrip("/") or "./"
         if value == "/":
             return value
         if re.match(r"^[A-Za-z]:$", value):
@@ -220,6 +218,72 @@ class DeviceFileService:
         if not value.startswith("/"):
             value = f"/{value}"
         return value.rstrip("/") or "/"
+
+    @staticmethod
+    def _directory_syntax_candidates(directory: str) -> list[str]:
+        """Return path variants for catalog queries across instrument syntaxes."""
+        base = DeviceFileService._normalize_remote_dir(directory)
+        candidates: list[str] = [base]
+
+        lower = base.lower()
+
+        def _add_usb_variants(tail: str) -> None:
+            candidates.extend([
+                f"./usb{tail}",
+                f"./usb0{tail}",
+                f"./usb1{tail}",
+                f"/usb{tail}",
+                f"/usb0{tail}",
+                f"/usb1{tail}",
+                f"USB:{tail}",
+                f"USB0:{tail}",
+                f"USB1:{tail}",
+            ])
+
+        def _add_sd_variants(tail: str) -> None:
+            candidates.extend([
+                f"./sd{tail}",
+                f"./sdcard{tail}",
+                f"/sd{tail}",
+                f"/sdcard{tail}",
+                f"/mmc{tail}",
+                f"SD:{tail}",
+                f"SDCARD:{tail}",
+                f"MMC:{tail}",
+            ])
+
+        if lower.startswith("/usb") or lower.startswith("./usb"):
+            tail = base[4:] if lower.startswith("/usb") else base[5:]
+            _add_usb_variants(tail)
+        elif lower.startswith("/sd") or lower.startswith("./sd") or lower.startswith("/mmc"):
+            if lower.startswith("/sd"):
+                tail = base[3:]
+            elif lower.startswith("./sd"):
+                tail = base[4:]
+            else:
+                tail = base[4:]
+            _add_sd_variants(tail)
+        elif re.match(r"^usb\d*:", lower):
+            tail = base.split(":", 1)[1] if ":" in base else ""
+            _add_usb_variants(tail)
+        elif re.match(r"^(sd|sdcard|mmc):", lower):
+            tail = base.split(":", 1)[1] if ":" in base else ""
+            _add_sd_variants(tail)
+
+        return list(dict.fromkeys([c.rstrip("/") if c not in ("/", "./") else c for c in candidates]))
+
+    @staticmethod
+    def _catalog_commands(directory: str) -> list[str]:
+        """Build command variants for a directory (quoted and unquoted forms)."""
+        commands: list[str] = []
+        for candidate in DeviceFileService._directory_syntax_candidates(directory):
+            commands.append(f'SOURce1:AREGenerator:SCENario:FILE:CATalog? "{candidate}"')
+            commands.append(f':MMEMory:CATalog? "{candidate}"')
+            # Some firmware expects program data rather than quoted string paths.
+            if "/" in candidate or candidate.startswith(".") or ":" in candidate:
+                commands.append(f"SOURce1:AREGenerator:SCENario:FILE:CATalog? {candidate}")
+                commands.append(f":MMEMory:CATalog? {candidate}")
+        return list(dict.fromkeys(commands))
 
     def _extract_directories_from_catalog_response(self, response: str, base_dir: str = "/") -> list[str]:
         """Extract candidate directory paths from catalog responses."""
@@ -273,11 +337,20 @@ class DeviceFileService:
             return (9, lower)
         return (2, lower)
 
-    async def _is_directory_reachable(self, directory: str) -> bool:
-        areg_cmd = f'SOURce1:AREGenerator:SCENario:FILE:CATalog? "{directory}"'
-        mmem_cmd = f':MMEMory:CATalog? "{directory}"'
+    @staticmethod
+    def _upload_directory_priority(path: str) -> tuple[int, str]:
+        """Sort key for uploads: USB first, then SD/mass storage, then others."""
+        lower = path.lower()
+        if "usb" in lower:
+            return (0, lower)
+        if any(token in lower for token in ("sd", "mmc", "mass_storage")):
+            return (1, lower)
+        if lower == "/":
+            return (9, lower)
+        return (2, lower)
 
-        for cmd in (areg_cmd, mmem_cmd):
+    async def _is_directory_reachable(self, directory: str) -> bool:
+        for cmd in self._catalog_commands(directory):
             try:
                 result = await self.scpi_service.execute_with_classification(cmd)
             except Exception:
@@ -296,14 +369,12 @@ class DeviceFileService:
         if not self.scpi_service.transport.connected:
             return [], "Device not connected"
 
-        root_candidates = ["/", "/mass_storage", "/storage", "/media", "/mnt"]
+        root_candidates = ["/", "./usb", "/mass_storage", "/storage", "/media", "/mnt"]
         discovered_from_catalog: list[str] = []
 
         # Step 1: pull directory names from reachable root-like catalogs.
         for root in root_candidates:
-            areg_cmd = f'SOURce1:AREGenerator:SCENario:FILE:CATalog? "{root}"'
-            mmem_cmd = f':MMEMory:CATalog? "{root}"'
-            for cmd in (areg_cmd, mmem_cmd):
+            for cmd in self._catalog_commands(root):
                 try:
                     result = await self.scpi_service.execute_with_classification(cmd)
                 except Exception:
@@ -333,6 +404,55 @@ class DeviceFileService:
         unique_dirs.sort(key=self._directory_priority)
         return unique_dirs, None
 
+    @staticmethod
+    def _join_remote_path(directory: str, filename: str) -> str:
+        base = DeviceFileService._normalize_remote_dir(directory)
+        clean_name = Path(filename).name
+        if base == "/":
+            return f"/{clean_name}"
+        return f"{base}/{clean_name}"
+
+    async def resolve_upload_remote_path(
+        self,
+        filename: str,
+        preferred_directory: str | None = None,
+    ) -> tuple[str | None, str | None]:
+        """Resolve a remote upload path, preferring connected USB directories.
+
+        If ``preferred_directory`` is provided and reachable, it is used first.
+        Otherwise, discovered reachable directories are ranked with USB-like
+        paths first.
+
+        Returns:
+            (remote_path, error)
+        """
+        if not self.scpi_service.transport.connected:
+            return None, "Device is not connected"
+
+        clean_name = Path(filename).name
+        if not clean_name.lower().endswith(".osi"):
+            return None, "Filename must end with .osi"
+
+        if preferred_directory and preferred_directory.strip():
+            preferred = self._normalize_remote_dir(preferred_directory)
+            if await self._is_directory_reachable(preferred):
+                return self._join_remote_path(preferred, clean_name), None
+
+        directories, discover_error = await self.discover_device_directories()
+        if discover_error and not directories:
+            return None, discover_error
+
+        if not directories:
+            # As a fallback, try the canonical USB path if discovery produced no list.
+            fallback = "/usb"
+            if await self._is_directory_reachable(fallback):
+                return self._join_remote_path(fallback, clean_name), None
+            return None, "No reachable upload directory discovered"
+
+        ranked = sorted(directories, key=self._upload_directory_priority)
+        selected = ranked[0]
+        return self._join_remote_path(selected, clean_name), None
+
     # ------------------------------------------------------------------
     # Upload
     # ------------------------------------------------------------------
@@ -357,8 +477,8 @@ class DeviceFileService:
 
         candidates: list[str] = [clean]
 
-        if clean.startswith("/"):
-            parts = clean.lstrip("/").split("/", 1)
+        if clean.startswith("/") or clean.startswith("./"):
+            parts = clean.lstrip("./").split("/", 1)
             root = (parts[0] if parts else "").lower()
             tail = f"/{parts[1]}" if len(parts) > 1 else ""
 
@@ -389,7 +509,7 @@ class DeviceFileService:
         return "media protected" in text or "write protect" in text or "read-only" in text
 
     async def upload_osi_bytes(self, data: bytes, remote_path: str) -> UploadResult:
-        """Upload already-loaded .osi bytes to device with path compatibility retries."""
+        """Upload already-loaded .osi/.sm bytes to device with path compatibility retries."""
         if not self.scpi_service.transport.connected:
             return UploadResult(ok=False, error="Device is not connected")
 
@@ -399,8 +519,8 @@ class DeviceFileService:
         clean_remote = self._sanitize_remote_path(remote_path)
         if not clean_remote:
             return UploadResult(ok=False, error="Remote destination path is empty")
-        if not clean_remote.lower().endswith(".osi"):
-            return UploadResult(ok=False, error="Remote path must end with .osi")
+        if not (clean_remote.lower().endswith(".osi") or clean_remote.lower().endswith(".sm")):
+            return UploadResult(ok=False, error="Remote path must end with .osi or .sm")
 
         candidates = self._build_remote_path_candidates(clean_remote)
         last_error: str | None = None
@@ -446,10 +566,10 @@ class DeviceFileService:
         local_path: str,
         remote_path: str,
     ) -> UploadResult:
-        """Upload a local .osi file to the device via SCPI :MMEMory:DATA.
+        """Upload a local .osi/.sm file to the device via SCPI :MMEMory:DATA.
 
         Validates:
-        - file extension is .osi
+        - file extension is .osi/.sm
         - file exists locally
         - file is not empty
         - device is connected
@@ -462,8 +582,8 @@ class DeviceFileService:
         local = Path(local_path)
 
         # --- Validate local file ---
-        if local.suffix.lower() != ".osi":
-            return UploadResult(ok=False, error="File must have a .osi extension")
+        if local.suffix.lower() not in {".osi", ".sm"}:
+            return UploadResult(ok=False, error="File must have a .osi or .sm extension")
         if not local.exists():
             return UploadResult(ok=False, error=f"Local file not found: {local_path}")
         if not local.is_file():

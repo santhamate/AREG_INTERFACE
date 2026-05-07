@@ -51,6 +51,22 @@ interface GeneratorStatus {
   last_preview: ScenarioPreview | null;
 }
 
+interface SessionState {
+  connected: boolean;
+}
+
+interface UploadOsiResponse {
+  ok: boolean;
+  remote_path: string | null;
+  error?: string | null;
+}
+
+interface DiscoverDeviceDirectoriesResponse {
+  ok: boolean;
+  directories: string[];
+  error?: string;
+}
+
 interface MultiObject {
   name: string;
   enabled: boolean;
@@ -76,6 +92,8 @@ export default function ScenarioGenerator() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationResult, setGenerationResult] = useState<GenerationResponse | null>(null);
   const [lastPreview, setLastPreview] = useState<ScenarioPreview | null>(null);
+  const [autoUploadStatus, setAutoUploadStatus] = useState<{ ok: boolean; text: string } | null>(null);
+  const [selectedUploadDirectory, setSelectedUploadDirectory] = useState<string | null>(null);
 
   const [rangeSweepParams, setRangeSweepParams] = useState({
     output_dir: "./scenarios",
@@ -180,6 +198,8 @@ export default function ScenarioGenerator() {
   const generateScenario = async (endpoint: string, payload: object) => {
     setIsGenerating(true);
     setGenerationResult(null);
+    setAutoUploadStatus(null);
+    setSelectedUploadDirectory(null);
 
     try {
       const response = await fetch(`${API_BASE}${endpoint}`, {
@@ -198,6 +218,9 @@ export default function ScenarioGenerator() {
       if (data.preview) {
         setLastPreview(data.preview);
       }
+      if (data.ok && data.file_path) {
+        await autoUploadGeneratedScenario(data.file_path);
+      }
     } catch (error) {
       setGenerationResult({
         ok: false,
@@ -210,6 +233,65 @@ export default function ScenarioGenerator() {
       });
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const discoverPreferredUsbDirectory = async (): Promise<string | null> => {
+    try {
+      const res = await fetch(`${API_BASE}/device/files/discover`);
+      if (!res.ok) return null;
+      const data = (await res.json()) as DiscoverDeviceDirectoriesResponse;
+      if (!data.ok || !Array.isArray(data.directories) || data.directories.length === 0) return null;
+      const sorted = [...data.directories].sort((a, b) => {
+        const al = a.toLowerCase();
+        const bl = b.toLowerCase();
+        const ar = al.includes("usb") ? 0 : (al.includes("sd") || al.includes("mmc") || al.includes("mass_storage") ? 1 : 2);
+        const br = bl.includes("usb") ? 0 : (bl.includes("sd") || bl.includes("mmc") || bl.includes("mass_storage") ? 1 : 2);
+        if (ar !== br) return ar - br;
+        return al.localeCompare(bl);
+      });
+      return sorted[0] ?? null;
+    } catch {
+      return null;
+    }
+  };
+
+  const autoUploadGeneratedScenario = async (localPath: string) => {
+    try {
+      const sessionRes = await fetch(`${API_BASE}/session`);
+      if (!sessionRes.ok) return;
+      const session = (await sessionRes.json()) as SessionState;
+      if (!session.connected) return;
+
+      const preferredDir = await discoverPreferredUsbDirectory();
+      if (preferredDir) {
+        setSelectedUploadDirectory(preferredDir);
+      }
+      const uploadPayload: { local_path: string; preferred_directory?: string } = { local_path: localPath };
+      if (preferredDir) {
+        uploadPayload.preferred_directory = preferredDir;
+      }
+
+      const uploadRes = await fetch(`${API_BASE}/device/files/upload`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(uploadPayload),
+      });
+      const uploadData = (await uploadRes.json()) as UploadOsiResponse;
+
+      if (uploadRes.ok && uploadData.ok) {
+        setAutoUploadStatus({
+          ok: true,
+          text: `Uploaded to device: ${uploadData.remote_path ?? "(unknown path)"}`,
+        });
+      } else {
+        setAutoUploadStatus({
+          ok: false,
+          text: uploadData.error ?? "Auto-upload to device failed",
+        });
+      }
+    } catch {
+      setAutoUploadStatus({ ok: false, text: "Auto-upload to device failed" });
     }
   };
 
@@ -513,6 +595,18 @@ export default function ScenarioGenerator() {
                     <h3>Generation Failed</h3>
                     <p><strong>Error:</strong> {generationResult.error}</p>
                   </>
+                )}
+              </div>
+            )}
+
+            {autoUploadStatus && (
+              <div className={`result-box ${autoUploadStatus.ok ? "success" : "error"}`}>
+                <h3>{autoUploadStatus.ok ? "Device Upload" : "Device Upload Warning"}</h3>
+                <p>{autoUploadStatus.text}</p>
+                {selectedUploadDirectory && (
+                  <div className="sg-auto-indicator">
+                    Auto-selected upload directory: {selectedUploadDirectory}
+                  </div>
                 )}
               </div>
             )}

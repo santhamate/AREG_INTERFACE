@@ -28,6 +28,13 @@ class ScpiService:
         ":HCOP:DATA?",
     }
 
+    # Some AREG commands are documented/used with a trailing '?' but can behave
+    # as fire-and-forget events in practice and never return data.
+    NO_RESPONSE_QUERY_COMMANDS = {
+        "SOURCE1:AREGENERATOR:SCENARIO:STATE?",
+        "SOUR1:AREG:SCEN:STAT?",
+    }
+
     ACTION_PREFIXES = (
         ":SOUR:SCEN:PLAY:PLAY",
         ":SOUR:SCEN:PLAY:PAUS",
@@ -103,6 +110,11 @@ class ScpiService:
 
         cmd_head = cleaned.split()[0].rstrip(";")
         cmd_upper = cmd_head.upper()
+        cmd_normalized = cmd_upper.lstrip(":")
+
+        if cmd_normalized in self.NO_RESPONSE_QUERY_COMMANDS:
+            return CommandClassification(command_type="action", expect_response=False)
+
         if cmd_upper.endswith("?"):
             is_binary = cmd_upper in self.BINARY_QUERY_COMMANDS
             return CommandClassification(

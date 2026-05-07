@@ -425,13 +425,13 @@ class ScenarioPlayerService:
     async def refresh_playback_state(self) -> ScenarioPlaybackStatus:
         """Query current playback state from instrument.
 
-        Sends ``SOURce1:AREGenerator:SCENario:STATe?`` and maps the response to
+        Sends ``SOURce1:AREGenerator:SCENario:STATus?`` and maps the response to
         a known playback state.  Falls back to in-memory state on error.
         """
         try:
             if self._is_connected() and self.synced_to_instrument:
                 result = await self.execute_scpi_command(
-                    self._registry_command("scenario.state", source_hw=1)
+                    self._registry_command("scenario.status", source_hw=1)
                 )
                 if result["ok"] and result.get("response"):
                     raw = str(result["response"]).strip().lower()

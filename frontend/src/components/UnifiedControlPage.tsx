@@ -17,6 +17,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import CommandBuilder from "./CommandBuilder";
 import ScenarioGenerator from "./ScenarioGenerator";
 import SimulationOverview from "./SimulationOverview";
+import ScenarioSweepPanel from "./ScenarioSweepPanel";
 import "./UnifiedControlPage.css";
 
 // ---------------------------------------------------------------------------
@@ -51,6 +52,12 @@ interface DeviceOsiFile {
   path: string;
   size_bytes: number | null;
   modified_time: string | null;
+}
+
+interface DiscoverDeviceDirectoriesResponse {
+  ok: boolean;
+  directories: string[];
+  error?: string;
 }
 
 interface TransferRemoteFile {
@@ -251,17 +258,19 @@ export default function UnifiedControlPage() {
   const [connecting, setConnecting] = useState(false);
 
   // -- Device files --
-  const [deviceDir, setDeviceDir] = useState("");
+  const [deviceDir, setDeviceDir] = useState("/var/user");
   const [deviceFiles, setDeviceFiles] = useState<DeviceOsiFile[]>([]);
   const [scanning, setScanning] = useState(false);
   const [scanMsg, setScanMsg] = useState<string | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [selectedScanDirectory, setSelectedScanDirectory] = useState<string | null>(null);
 
   // -- Upload --
   const [localFile, setLocalFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadMsg, setUploadMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [selectedUploadDirectory, setSelectedUploadDirectory] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // -- File Transfer Manager --
@@ -317,6 +326,27 @@ export default function UnifiedControlPage() {
 
   // -- Logs --
   const [commandLog, setCommandLog] = useState<CommandLogEntry[]>([]);
+  const storagePanelRef = useRef<HTMLDivElement>(null);
+  const [storagePanelHeight, setStoragePanelHeight] = useState<number | null>(null);
+
+  // -- HCOPy --
+  const [hcopyFormat, setHcopyFormat] = useState("PNG");
+  const [hcopyRegion, setHcopyRegion] = useState("ALL");
+  const [hcopyAutoNaming, setHcopyAutoNaming] = useState(true);
+  const [hcopyManualFilename, setHcopyManualFilename] = useState("");
+  const [hcopyAutoDir, setHcopyAutoDir] = useState("/var/user");
+  const [hcopyPrefixEnabled, setHcopyPrefixEnabled] = useState(false);
+  const [hcopyPrefix, setHcopyPrefix] = useState("");
+  const [hcopyYearEnabled, setHcopyYearEnabled] = useState(false);
+  const [hcopyMonthEnabled, setHcopyMonthEnabled] = useState(false);
+  const [hcopyDayEnabled, setHcopyDayEnabled] = useState(false);
+  const [hcopyAutoNumber, setHcopyAutoNumber] = useState<number | null>(null);
+  const [hcopyAutoFilename, setHcopyAutoFilename] = useState<string | null>(null);
+  const [hcopyAutoFullPath, setHcopyAutoFullPath] = useState<string | null>(null);
+  const [hcopyBusy, setHcopyBusy] = useState(false);
+  const [hcopyMsg, setHcopyMsg] = useState<string | null>(null);
+  const [hcopyMsgErr, setHcopyMsgErr] = useState(false);
+  const [hcopyLastCapture, setHcopyLastCapture] = useState<string | null>(null);
 
   // -------------------------------------------------------------------------
   // Session polling
@@ -361,6 +391,27 @@ export default function UnifiedControlPage() {
       // Ignore local storage errors.
     }
   }, [scpiHistory]);
+
+  useEffect(() => {
+    const el = storagePanelRef.current;
+    if (!el) {
+      setStoragePanelHeight(null);
+      return;
+    }
+
+    const updateHeight = () => {
+      const next = Math.round(el.getBoundingClientRect().height);
+      setStoragePanelHeight(next > 0 ? next : null);
+    };
+
+    updateHeight();
+    const ro = new ResizeObserver(() => updateHeight());
+    ro.observe(el);
+
+    return () => {
+      ro.disconnect();
+    };
+  }, [deviceFiles.length, selectedScenario, scanning, uploading, uploadMsg, scanError, scanMsg]);
 
   // Auto-scan on connect
   const prevConnectedRef = useRef(false);
@@ -419,8 +470,31 @@ export default function UnifiedControlPage() {
   const scanDeviceFiles = useCallback(async (silent = false, directoryOverride?: string) => {
     if (!silent) setScanError(null);
     setScanning(true);
-    const targetDir = directoryOverride ?? deviceDir;
+    setSelectedScanDirectory(null);
+    let targetDir = directoryOverride ?? deviceDir;
     try {
+      if (!targetDir.trim() && session.connected) {
+        const discover = await fetch(`${API_BASE}/device/files/discover`);
+        if (discover.ok) {
+          const info = await discover.json() as DiscoverDeviceDirectoriesResponse;
+          if (info.ok && info.directories.length > 0) {
+            const sorted = [...info.directories].sort((a, b) => {
+              const al = a.toLowerCase();
+              const bl = b.toLowerCase();
+              const ar = al.includes("usb") ? 0 : (al.includes("sd") || al.includes("mmc") || al.includes("mass_storage") ? 1 : 2);
+              const br = bl.includes("usb") ? 0 : (bl.includes("sd") || bl.includes("mmc") || bl.includes("mass_storage") ? 1 : 2);
+              if (ar !== br) return ar - br;
+              return al.localeCompare(bl);
+            });
+            targetDir = sorted[0] ?? targetDir;
+            if (targetDir) {
+              setDeviceDir(targetDir);
+              setSelectedScanDirectory(targetDir);
+            }
+          }
+        }
+      }
+
       const r = await fetch(`${API_BASE}/device/files/scan`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -429,7 +503,7 @@ export default function UnifiedControlPage() {
       const data = await r.json() as { ok: boolean; files: DeviceOsiFile[]; error?: string };
       if (data.ok) {
         setDeviceFiles(data.files);
-        if (!silent) setScanMsg(`Found ${data.files.length} .osi file(s)`);
+        if (!silent) setScanMsg(`Found ${data.files.length} .osi/.sm file(s)`);
       } else {
         if (!silent) setScanError(data.error ?? "Scan failed");
       }
@@ -438,7 +512,29 @@ export default function UnifiedControlPage() {
     } finally {
       setScanning(false);
     }
-  }, [deviceDir]);
+  }, [deviceDir, session.connected]);
+
+  const discoverPreferredUploadDirectory = useCallback(async (): Promise<string | null> => {
+    if (!session.connected) return null;
+    try {
+      const r = await fetch(`${API_BASE}/device/files/discover`);
+      const data = await r.json() as DiscoverDeviceDirectoriesResponse;
+      if (!r.ok || !data.ok || !Array.isArray(data.directories) || data.directories.length === 0) {
+        return null;
+      }
+      const sorted = [...data.directories].sort((a, b) => {
+        const ax = a.toLowerCase();
+        const bx = b.toLowerCase();
+        const aUsb = ax.includes("usb") ? 0 : (ax.includes("sd") || ax.includes("mmc") || ax.includes("mass_storage") ? 1 : 2);
+        const bUsb = bx.includes("usb") ? 0 : (bx.includes("sd") || bx.includes("mmc") || bx.includes("mass_storage") ? 1 : 2);
+        if (aUsb !== bUsb) return aUsb - bUsb;
+        return ax.localeCompare(bx);
+      });
+      return sorted[0] ?? null;
+    } catch {
+      return null;
+    }
+  }, [session.connected]);
 
   const appendTransferLog = useCallback((message: string) => {
     const ts = new Date().toLocaleTimeString();
@@ -579,7 +675,7 @@ export default function UnifiedControlPage() {
 
       // Keep scenario dropdown in sync with remote OSI files.
       const remoteOsi = (data.files ?? [])
-        .filter((f) => !f.is_directory && f.name.toLowerCase().endsWith(".osi"))
+        .filter((f) => !f.is_directory && (f.name.toLowerCase().endsWith(".osi") || f.name.toLowerCase().endsWith(".sm")))
         .map((f) => ({ name: f.name, path: f.remote_path, size_bytes: f.size, modified_time: f.modified_time }));
       if (remoteOsi.length > 0) {
         setDeviceFiles(remoteOsi);
@@ -835,17 +931,21 @@ export default function UnifiedControlPage() {
       setUploadMsg({ text: "Device not connected", ok: false });
       return;
     }
-    if (!deviceDir.trim()) {
-      setUploadMsg({ text: "Enter a device directory before upload (e.g. /sdcard or /mass_storage)", ok: false });
-      return;
-    }
-
     setUploading(true);
     setUploadProgress(10);
     setUploadMsg(null);
+    setSelectedUploadDirectory(null);
 
     try {
-      const remotePath = `${deviceDir.replace(/\/$/, "")}/${localFile.name}`;
+      const discoveredUploadDir = deviceDir.trim() ? null : await discoverPreferredUploadDirectory();
+      const preferredDir = deviceDir.trim() || discoveredUploadDir || "";
+      if (discoveredUploadDir) {
+        setSelectedUploadDirectory(discoveredUploadDir);
+      }
+      if (preferredDir && preferredDir !== deviceDir) {
+        setDeviceDir(preferredDir);
+      }
+      const remotePath = preferredDir ? `${preferredDir.replace(/\/$/, "")}/${localFile.name}` : "";
 
       // Write local file to a temp path the backend can read
       // We send via multipart-like approach: first save locally then call the API.
@@ -854,7 +954,12 @@ export default function UnifiedControlPage() {
       // browser we send the content via a dedicated raw-upload helper endpoint.
       const formData = new FormData();
       formData.append("file", localFile);
-      formData.append("remote_path", remotePath);
+      if (remotePath) {
+        formData.append("remote_path", remotePath);
+      }
+      if (preferredDir) {
+        formData.append("preferred_directory", preferredDir);
+      }
 
       setUploadProgress(30);
 
@@ -866,11 +971,11 @@ export default function UnifiedControlPage() {
       setUploadProgress(80);
 
       if (r.ok) {
-        const data = await r.json() as { ok: boolean; bytes_transferred: number; error?: string };
+        const data = await r.json() as { ok: boolean; bytes_transferred: number; error?: string; remote_path?: string };
         if (data.ok) {
-          setUploadMsg({ text: `Uploaded ${formatBytes(data.bytes_transferred)} → ${remotePath}`, ok: true });
+          setUploadMsg({ text: `Uploaded ${formatBytes(data.bytes_transferred)} → ${data.remote_path ?? remotePath}`, ok: true });
           // Refresh file list
-          await scanDeviceFiles(true);
+          await scanDeviceFiles(true, preferredDir || undefined);
         } else {
           setUploadMsg({ text: data.error ?? "Upload failed", ok: false });
         }
@@ -919,6 +1024,38 @@ export default function UnifiedControlPage() {
     } finally {
       setPlayerBusy(false);
     }
+  };
+
+  // Stop: immediately reflect stopped state in UI, then fire-and-forget the SCPI
+  // command so the button is never blocked by network latency.
+  const stopScenario = () => {
+    setPlaybackState("stopped");
+    setPlayerMsg(null);
+    setLastCmd("Stop");
+    setLastResp(null);
+    // Fire async in background — don't await so UI stays responsive
+    void (async () => {
+      try {
+        const r = await fetch(`${API_BASE}/scenario/stop`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+        const data = await r.json() as { ok: boolean; message?: string; error?: string };
+        setLastResp(data.message ?? data.error ?? null);
+        if (!data.ok) setPlayerMsg(data.error ?? data.message ?? "Stop failed");
+        // Sync actual state from instrument
+        try {
+          const sr = await fetch(`${API_BASE}/scenario/status`);
+          const sd = await sr.json() as { state: PlaybackState; current_scenario: string | null; replay_mode?: ReplayMode };
+          setPlaybackState(sd.state);
+          if (sd.replay_mode) setReplayMode(sd.replay_mode);
+        } catch { /* silent */ }
+        await refreshLog();
+      } catch (e) {
+        setPlayerMsg(e instanceof Error ? e.message : "Stop failed");
+      }
+    })();
   };
 
   const loadScenario = async () => {
@@ -1143,6 +1280,155 @@ export default function UnifiedControlPage() {
   };
 
   // -------------------------------------------------------------------------
+  // HCOPy actions
+  // -------------------------------------------------------------------------
+
+  const hcopyPost = async (endpoint: string, body: object): Promise<Record<string, unknown>> => {
+    const r = await fetch(`${API_BASE}/${endpoint}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return r.json() as Promise<Record<string, unknown>>;
+  };
+
+  const hcopyGet = async (endpoint: string): Promise<Record<string, unknown>> => {
+    const r = await fetch(`${API_BASE}/${endpoint}`);
+    return r.json() as Promise<Record<string, unknown>>;
+  };
+
+  const applyHcopySettings = async () => {
+    setHcopyBusy(true);
+    setHcopyMsg(null);
+    setHcopyMsgErr(false);
+    try {
+      await hcopyPost("hcopy/format", { format: hcopyFormat });
+      await hcopyPost("hcopy/region", { region: hcopyRegion });
+      await hcopyPost("hcopy/auto-naming", { enabled: hcopyAutoNaming });
+      if (!hcopyAutoNaming && hcopyManualFilename.trim()) {
+        await hcopyPost("hcopy/filename", { path: hcopyManualFilename });
+      }
+      if (hcopyAutoNaming) {
+        await hcopyPost("hcopy/auto-directory", { directory: hcopyAutoDir });
+        await hcopyPost("hcopy/prefix-enabled", { enabled: hcopyPrefixEnabled });
+        if (hcopyPrefixEnabled && hcopyPrefix.trim()) {
+          await hcopyPost("hcopy/prefix", { prefix: hcopyPrefix });
+        }
+        await hcopyPost("hcopy/date-components", {
+          year: hcopyYearEnabled,
+          month: hcopyMonthEnabled,
+          day: hcopyDayEnabled,
+        });
+      }
+      setHcopyMsg("Settings applied.");
+    } catch (e) {
+      setHcopyMsgErr(true);
+      setHcopyMsg(e instanceof Error ? e.message : "Failed to apply settings");
+    } finally {
+      setHcopyBusy(false);
+    }
+  };
+
+  const executeHcopy = async () => {
+    setHcopyBusy(true);
+    setHcopyMsg(null);
+    setHcopyMsgErr(false);
+    try {
+      const result = await hcopyPost("hcopy/execute", {});
+      if (result.ok) {
+        setHcopyAutoFilename((result.generated_filename as string | null) ?? null);
+        setHcopyAutoFullPath((result.generated_path as string | null) ?? null);
+        setHcopyMsg((result.message as string) ?? "Hardcopy saved on instrument.");
+        // Refresh auto number
+        const numResult = await hcopyGet("hcopy/auto-number");
+        if (numResult.number !== null && numResult.number !== undefined) {
+          setHcopyAutoNumber(numResult.number as number);
+        }
+      } else {
+        setHcopyMsgErr(true);
+        setHcopyMsg((result.error as string) ?? "Execute failed");
+      }
+    } catch (e) {
+      setHcopyMsgErr(true);
+      setHcopyMsg(e instanceof Error ? e.message : "Execute failed");
+    } finally {
+      setHcopyBusy(false);
+    }
+  };
+
+  const captureHcopyData = async () => {
+    setHcopyBusy(true);
+    setHcopyMsg(null);
+    setHcopyMsgErr(false);
+    try {
+      const result = await hcopyPost("hcopy/capture-data", { timeout_ms: 12000 });
+      if (result.ok) {
+        setHcopyLastCapture((result.file_path as string) ?? null);
+        setHcopyMsg((result.message as string) ?? "Captured.");
+      } else {
+        setHcopyMsgErr(true);
+        setHcopyMsg((result.error as string) ?? "Capture failed");
+      }
+    } catch (e) {
+      setHcopyMsgErr(true);
+      setHcopyMsg(e instanceof Error ? e.message : "Capture failed");
+    } finally {
+      setHcopyBusy(false);
+    }
+  };
+
+  const clearHcopyDirectory = async () => {
+    const confirmed = window.confirm(
+      `This will delete ALL .png/.bmp/.jpg/.xpm files in:\n\n${hcopyAutoDir}\n\nThis action cannot be undone. Continue?`
+    );
+    if (!confirmed) return;
+    setHcopyBusy(true);
+    setHcopyMsg(null);
+    setHcopyMsgErr(false);
+    try {
+      const result = await hcopyPost("hcopy/auto-directory/clear", {});
+      if (result.ok) {
+        setHcopyMsg("Auto directory cleared.");
+      } else {
+        setHcopyMsgErr(true);
+        setHcopyMsg((result.error as string) ?? "Clear failed");
+      }
+    } catch (e) {
+      setHcopyMsgErr(true);
+      setHcopyMsg(e instanceof Error ? e.message : "Clear failed");
+    } finally {
+      setHcopyBusy(false);
+    }
+  };
+
+  const refreshHcopyAutoInfo = async () => {
+    setHcopyBusy(true);
+    try {
+      const [numR, fileR, pathR] = await Promise.all([
+        hcopyGet("hcopy/auto-number"),
+        hcopyGet("hcopy/auto-filename"),
+        hcopyGet("hcopy/auto-path"),
+      ]);
+      if (numR.number !== null && numR.number !== undefined) setHcopyAutoNumber(numR.number as number);
+      if (fileR.filename) setHcopyAutoFilename(fileR.filename as string);
+      if (pathR.path) setHcopyAutoFullPath(pathR.path as string);
+    } catch {
+      /* silent */
+    } finally {
+      setHcopyBusy(false);
+    }
+  };
+
+  const openHcopyLastCapture = async () => {
+    if (!hcopyLastCapture) return;
+    try {
+      await hcopyPost("hardcopy/open-file", { file_path: hcopyLastCapture });
+    } catch {
+      /* silent */
+    }
+  };
+
+  // -------------------------------------------------------------------------
   // Render helpers
   // -------------------------------------------------------------------------
 
@@ -1241,136 +1527,551 @@ export default function UnifiedControlPage() {
       <div className="ucp-main">
 
         {/* ============================================================
-            SECTION 0 – Simulation Overview
+            Simulation Overview – full width top (main function)
             ============================================================ */}
         <Section icon="📊" title="Simulation Overview">
           <SimulationOverview />
-        </Section>
 
-        {/* ============================================================
-            SECTION 1 – Device / File Management
-            ============================================================ */}
-        <Section icon="📁" title="Device File Management">
-          {/* Directory + scan */}
-          <div className="ucp-row" style={{ marginBottom: 10 }}>
-            <div className="ucp-field" style={{ flex: 1 }}>
-              <label>Device directory</label>
-              <input
-                value={deviceDir}
-                onChange={(e) => setDeviceDir(e.target.value)}
-                placeholder="Type device path (e.g. /sdcard or /mass_storage)"
-                disabled={!session.connected}
-              />
-            </div>
-            <button
-              className="ucp-btn"
-              onClick={() => scanDeviceFiles()}
-              disabled={!session.connected || scanning}
-              style={{ alignSelf: "flex-end" }}
-            >
-              {scanning ? "Scanning…" : "Refresh Files"}
-            </button>
-          </div>
-
-          {scanError && <div className="ucp-msg error">{scanError}</div>}
-          {scanMsg && !scanError && <div className="ucp-msg success">{scanMsg}</div>}
-
-          {/* Available files dropdown */}
-          <div className="ucp-field" style={{ marginBottom: 12 }}>
-            <label>Available OSI files on device</label>
-            {deviceFiles.length === 0 ? (
-              <div className="ucp-empty-state">
-                {session.connected
-                  ? 'No .osi files found on the device. Click "Refresh Files" to scan.'
-                  : "Connect to the device to scan for available .osi files."}
+          {/* ---- Scenario Player controls (merged) ---- */}
+          <div className="ucp-player-inset">
+            {/* Track display */}
+            <div className="ucp-track-display" style={{ marginBottom: 10 }}>
+              <span className="ucp-track-icon">🎬</span>
+              <div className="ucp-track-info">
+                <div className="ucp-track-name">
+                  {selectedScenario
+                    ? selectedScenario.split("/").pop() ?? selectedScenario
+                    : "No scenario selected"}
+                </div>
+                {selectedScenario && (
+                  <div className="ucp-track-meta">{selectedScenario}</div>
+                )}
               </div>
-            ) : (
-              <select
-                className="ucp-file-dropdown"
-                value={selectedScenario ?? ""}
-                onChange={(e) => {
-                  setSelectedScenario(e.target.value || null);
-                  setPlaybackState("not_loaded");
-                  setPlayerMsg(null);
-                }}
+              <div
+                className="ucp-state-badge"
+                style={{ background: stateColor(playbackState) }}
               >
-                <option value="">— Select a scenario —</option>
-                {deviceFiles.map((f) => (
-                  <option key={f.path} value={f.path}>
-                    {f.name}{f.size_bytes != null ? ` (${formatBytes(f.size_bytes)})` : ""}
-                  </option>
-                ))}
-              </select>
+                {stateLabel(playbackState)}
+              </div>
+            </div>
+
+            {/* Controls row */}
+            <div className="ucp-player-controls">
+              <label style={{ display: "flex", alignItems: "center", gap: 8, marginRight: 4 }}>
+                Replay
+                <select
+                  value={replayMode === "UNKNOWN" ? "SINGle" : replayMode}
+                  onChange={(e) => setReplayMode(e.target.value as ReplayMode)}
+                  disabled={!session.connected || playerBusy}
+                >
+                  <option value="SINGle">Single</option>
+                  <option value="LOOP">Loop</option>
+                </select>
+              </label>
+              <button
+                className="ucp-ctrl-btn secondary"
+                onClick={() => setReplayModeOnDevice(replayMode)}
+                disabled={!session.connected || playerBusy || replayMode === "UNKNOWN"}
+                title="Apply replay mode to instrument"
+              >
+                Apply Mode
+              </button>
+              <button
+                className="ucp-ctrl-btn"
+                onClick={loadScenario}
+                disabled={!hasSelection || playerBusy}
+                title={session.connected ? "Load scenario onto instrument" : "Load scenario into offline preview"}
+              >
+                ⏏ Load
+              </button>
+              <button
+                className="ucp-ctrl-btn play"
+                onClick={() => playerAction("Play", "/scenario/play")}
+                disabled={!hasSelection || playerBusy}
+                title={session.connected ? "Start playback" : "Start offline preview playback"}
+              >
+                ▶ Play
+              </button>
+              <button
+                className="ucp-ctrl-btn"
+                onClick={() => playerAction("Pause", "/scenario/pause")}
+                disabled={playbackState !== "playing" || playerBusy}
+                title={session.connected ? "Pause playback" : "Pause offline preview playback"}
+              >
+                ⏸ Pause
+              </button>
+              <button
+                className="ucp-ctrl-btn stop"
+                onClick={stopScenario}
+                title={session.connected ? "Stop playback immediately" : "Stop offline preview playback"}
+              >
+                ⏹ Stop
+              </button>
+              <button
+                className="ucp-ctrl-btn"
+                onClick={() => playerAction("Restart", "/scenario/restart")}
+                disabled={!hasSelection || playerBusy}
+                title={session.connected ? "Restart playback" : "Restart offline preview playback"}
+              >
+                🔄 Restart
+              </button>
+            </div>
+
+            {playerMsg && (
+              <div className="ucp-msg error" style={{ marginTop: 8 }}>{playerMsg}</div>
             )}
           </div>
+        </Section>
 
-          {/* Upload area */}
-          <details style={{ marginTop: 4 }}>
-            <summary
-              style={{
-                cursor: "pointer",
-                color: "var(--text-muted)",
-                fontSize: 13,
-                userSelect: "none",
-                marginBottom: 8,
-              }}
-            >
-              ⬆ Upload OSI file to device
-            </summary>
-            <div style={{ marginTop: 10 }}>
-              <div className="ucp-upload-area">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".osi"
-                  onChange={handleFileSelect}
-                  id="ucp-file-input"
-                />
-                <label className="ucp-upload-label" htmlFor="ucp-file-input">
-                  📂 Choose .osi file
-                </label>
-                <span className="ucp-selected-file">
-                  {localFile ? localFile.name : "No file chosen"}
-                </span>
+        {/* External Storage Browser is placed at the absolute bottom */}
+
+        {/* ============================================================
+            Two-column layout: [Log] | [Instrument Storage Browser]
+            ============================================================ */}
+        <div className="ucp-player-log-grid">
+          {/* ---- LEFT: Command Log ---- */}
+          <div className="ucp-log-col">
+            <div className="ucp-log-panel" style={storagePanelHeight ? { height: `${storagePanelHeight}px` } : undefined}>
+              <div className="ucp-log-panel-header">
+                <span>📋 Command Log</span>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button className="ucp-btn secondary" style={{ padding: "2px 10px", fontSize: 12 }} onClick={refreshLog}>Refresh</button>
+                  <button className="ucp-btn secondary danger" style={{ padding: "2px 10px", fontSize: 12 }} onClick={clearLog}>Clear</button>
+                </div>
               </div>
+              <div className="ucp-log-list ucp-log-list--fill">
+                {commandLog.length === 0 ? (
+                  <div className="ucp-empty-state">No commands logged yet.</div>
+                ) : (
+                  [...commandLog].reverse().map((entry, i) => (
+                    <div key={i} className={`ucp-log-entry ${entry.ok ? "ok" : "error"}`}>
+                      <span className="ucp-log-ts">{entry.timestamp}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="ucp-log-cmd">{entry.command}</div>
+                        {entry.response && (
+                          <div className="ucp-log-response">→ {entry.response}</div>
+                        )}
+                        {entry.error && (
+                          <div className="ucp-log-error">✗ {entry.error}</div>
+                        )}
+                      </div>
+                      <span className={`ucp-log-type ${entry.command_type}`}>
+                        {entry.command_type}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>{/* end ucp-log-col */}
 
-              <div className="ucp-row" style={{ marginTop: 8 }}>
-                <div className="ucp-remote-field" style={{ flex: 1 }}>
-                  <label>Destination on device</label>
-                  <div className="ucp-empty-state" style={{ marginTop: 4 }}>
-                    {localFile
-                      ? `${deviceDir.replace(/\/$/, "")}/${localFile.name}`
-                      : "Choose a local .osi file to generate destination path"}
-                  </div>
+          {/* ---- RIGHT: Instrument Storage Browser ---- */}
+          <div className="ucp-sim-player-col" ref={storagePanelRef}>
+            <Section icon="📁" title="Instrument Storage Browser">
+              <div className="ucp-storage-panel-body">
+              {/* Directory + scan */}
+              <div className="ucp-row" style={{ marginBottom: 10 }}>
+                <div className="ucp-field" style={{ flex: 1 }}>
+                  <label>Device directory</label>
+                  <input
+                    value={deviceDir}
+                    onChange={(e) => setDeviceDir(e.target.value)}
+                    placeholder="Type device path (default /var/user)"
+                    disabled={!session.connected}
+                  />
                 </div>
                 <button
                   className="ucp-btn"
-                  onClick={uploadFile}
-                  disabled={!localFile || !session.connected || uploading || !deviceDir.trim()}
+                  onClick={() => scanDeviceFiles()}
+                  disabled={!session.connected || scanning}
+                  style={{ alignSelf: "flex-end" }}
                 >
-                  {uploading ? "Uploading…" : "Upload"}
+                  {scanning ? "Scanning…" : "Refresh Files"}
                 </button>
               </div>
 
-              {uploading && (
-                <div className="ucp-progress-bar">
-                  <div className="ucp-progress-fill" style={{ width: `${uploadProgress}%` }} />
+              {scanError && <div className="ucp-msg error">{scanError}</div>}
+              {scanMsg && !scanError && <div className="ucp-msg success">{scanMsg}</div>}
+              {selectedScanDirectory && (
+                <div className="ucp-auto-indicator" style={{ marginBottom: 10 }}>
+                  Auto-selected scan directory: {selectedScanDirectory}
                 </div>
               )}
 
-              {uploadMsg && (
-                <div className={`ucp-msg ${uploadMsg.ok ? "success" : "error"}`} style={{ marginTop: 8 }}>
-                  {uploadMsg.text}
+              {/* Available files dropdown */}
+              <div className="ucp-field" style={{ marginBottom: 12 }}>
+                <label>Scenario Library (.osi/.sm)</label>
+                {deviceFiles.length === 0 ? (
+                  <div className="ucp-empty-state">
+                    {session.connected
+                      ? 'No .osi/.sm files found on the device. Click "Refresh Files" to scan.'
+                      : "Connect to the device to scan for available .osi/.sm files."}
+                  </div>
+                ) : (
+                  <select
+                    className="ucp-file-dropdown"
+                    value={selectedScenario ?? ""}
+                    onChange={(e) => {
+                      setSelectedScenario(e.target.value || null);
+                      setPlaybackState("not_loaded");
+                      setPlayerMsg(null);
+                    }}
+                  >
+                    <option value="">— Select a scenario —</option>
+                    {deviceFiles.map((f) => (
+                      <option key={f.path} value={f.path}>
+                        {f.name}{f.size_bytes != null ? ` (${formatBytes(f.size_bytes)})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Upload area */}
+              <details style={{ marginTop: 4 }}>
+                <summary
+                  style={{
+                    cursor: "pointer",
+                    color: "var(--text-muted)",
+                    fontSize: 13,
+                    userSelect: "none",
+                    marginBottom: 8,
+                  }}
+                >
+                  ⬆ Upload Scenario File (.osi/.sm) to device
+                </summary>
+                <div style={{ marginTop: 10 }}>
+                  <div className="ucp-upload-area">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".osi,.sm"
+                      onChange={handleFileSelect}
+                      id="ucp-file-input"
+                    />
+                    <label className="ucp-upload-label" htmlFor="ucp-file-input">
+                      📂 Choose .osi/.sm file
+                    </label>
+                    <span className="ucp-selected-file">
+                      {localFile ? localFile.name : "No file chosen"}
+                    </span>
+                  </div>
+
+                  <div className="ucp-row" style={{ marginTop: 8 }}>
+                    <div className="ucp-remote-field" style={{ flex: 1 }}>
+                      <label>Destination on device</label>
+                      <div className="ucp-empty-state" style={{ marginTop: 4 }}>
+                        {localFile
+                          ? `${deviceDir.replace(/\/$/, "")}/${localFile.name}`
+                          : "Choose a local .osi/.sm file to generate destination path"}
+                      </div>
+                    </div>
+                    <button
+                      className="ucp-btn"
+                      onClick={uploadFile}
+                      disabled={!localFile || !session.connected || uploading}
+                    >
+                      {uploading ? "Uploading…" : "Upload"}
+                    </button>
+                  </div>
+
+                  {uploading && (
+                    <div className="ucp-progress-bar">
+                      <div className="ucp-progress-fill" style={{ width: `${uploadProgress}%` }} />
+                    </div>
+                  )}
+
+                  {uploadMsg && (
+                    <div className={`ucp-msg ${uploadMsg.ok ? "success" : "error"}`} style={{ marginTop: 8 }}>
+                      {uploadMsg.text}
+                    </div>
+                  )}
+                  {selectedUploadDirectory && (
+                    <div className="ucp-auto-indicator" style={{ marginTop: 8 }}>
+                      Auto-selected upload directory: {selectedUploadDirectory}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </details>
+              </details>
+              </div>
+            </Section>
+          </div>{/* end ucp-sim-player-col */}
+
+        </div>{/* end ucp-player-log-grid */}
+
+        {/* Scenario Inspector section removed per UX request. */}
+
+        {/* ============================================================
+          SECTION 4 – Scenario Speed Sweep (AREG)
+            ============================================================ */}
+        <Section icon="🧪" title="Scenario Speed Sweep" defaultOpen={false}>
+          <ScenarioSweepPanel connected={session.connected} mode="speed-sweep" />
         </Section>
 
         {/* ============================================================
-            SECTION 2 – File Transfer Manager
+          SECTION 5 – Scenario Generator
             ============================================================ */}
-        <Section icon="⇅" title="File Transfer Manager" defaultOpen={false}>
+        <Section icon="🎬" title="Scenario Generator" defaultOpen={false}>
+          <div className="ucp-generator-embed">
+            <ScenarioGenerator />
+          </div>
+        </Section>
+
+        {/* ============================================================
+          SECTION 6 – Hardcopy / Screenshot
+            ============================================================ */}
+        <Section icon="📸" title="Hardcopy / Screenshot" defaultOpen={false}>
+          <div className="ucp-hcopy-panel">
+            {/* ---- Format & Region ---- */}
+            <div className="ucp-hcopy-row">
+              <label className="ucp-hcopy-label">
+                Image Format
+                <select
+                  className="ucp-cmd-input"
+                  value={hcopyFormat}
+                  onChange={(e) => setHcopyFormat(e.target.value)}
+                >
+                  {["PNG", "BMP", "JPG", "XPM"].map((f) => (
+                    <option key={f} value={f}>{f}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="ucp-hcopy-label">
+                Region
+                <select
+                  className="ucp-cmd-input"
+                  value={hcopyRegion}
+                  onChange={(e) => setHcopyRegion(e.target.value)}
+                >
+                  <option value="ALL">ALL (full screen)</option>
+                  <option value="DIALog">DIALog (active dialog)</option>
+                </select>
+              </label>
+            </div>
+
+            {/* ---- Auto naming toggle ---- */}
+            <div className="ucp-hcopy-row" style={{ alignItems: "center", gap: 12 }}>
+              <label className="ucp-hcopy-check-label">
+                <input
+                  type="checkbox"
+                  checked={hcopyAutoNaming}
+                  onChange={(e) => setHcopyAutoNaming(e.target.checked)}
+                />
+                Automatic Naming
+              </label>
+            </div>
+
+            {/* ---- Auto naming options ---- */}
+            {hcopyAutoNaming ? (
+              <div className="ucp-hcopy-sub">
+                <label className="ucp-hcopy-label" style={{ flex: 1 }}>
+                  Auto Directory (on instrument)
+                  <input
+                    className="ucp-cmd-input"
+                    value={hcopyAutoDir}
+                    onChange={(e) => setHcopyAutoDir(e.target.value)}
+                    placeholder="/var/user/HCopy"
+                  />
+                </label>
+
+                <div className="ucp-hcopy-row" style={{ alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                  <label className="ucp-hcopy-check-label">
+                    <input
+                      type="checkbox"
+                      checked={hcopyPrefixEnabled}
+                      onChange={(e) => setHcopyPrefixEnabled(e.target.checked)}
+                    />
+                    Prefix
+                  </label>
+                  {hcopyPrefixEnabled && (
+                    <input
+                      className="ucp-cmd-input"
+                      style={{ flex: 1, minWidth: 140 }}
+                      value={hcopyPrefix}
+                      onChange={(e) => setHcopyPrefix(e.target.value)}
+                      placeholder="e.g. hardcopy"
+                    />
+                  )}
+                </div>
+
+                <div className="ucp-hcopy-row" style={{ alignItems: "center", gap: 16 }}>
+                  <span style={{ fontSize: "0.85rem", color: "var(--color-muted, #888)" }}>Date components:</span>
+                  <label className="ucp-hcopy-check-label">
+                    <input type="checkbox" checked={hcopyYearEnabled} onChange={(e) => setHcopyYearEnabled(e.target.checked)} />
+                    Year
+                  </label>
+                  <label className="ucp-hcopy-check-label">
+                    <input type="checkbox" checked={hcopyMonthEnabled} onChange={(e) => setHcopyMonthEnabled(e.target.checked)} />
+                    Month
+                  </label>
+                  <label className="ucp-hcopy-check-label">
+                    <input type="checkbox" checked={hcopyDayEnabled} onChange={(e) => setHcopyDayEnabled(e.target.checked)} />
+                    Day
+                  </label>
+                </div>
+
+                {/* Auto naming info */}
+                <div className="ucp-hcopy-info-row">
+                  <div className="ucp-hcopy-info-item">
+                    <span className="ucp-hcopy-info-label">Auto number:</span>
+                    <span>{hcopyAutoNumber !== null ? String(hcopyAutoNumber) : "—"}</span>
+                  </div>
+                  <div className="ucp-hcopy-info-item">
+                    <span className="ucp-hcopy-info-label">Filename:</span>
+                    <span>{hcopyAutoFilename ?? "—"}</span>
+                  </div>
+                  <div className="ucp-hcopy-info-item">
+                    <span className="ucp-hcopy-info-label">Full path:</span>
+                    <span>{hcopyAutoFullPath ?? "—"}</span>
+                  </div>
+                </div>
+
+                <div className="ucp-hcopy-row" style={{ gap: 8, flexWrap: "wrap" }}>
+                  <button
+                    className="ucp-btn secondary"
+                    onClick={refreshHcopyAutoInfo}
+                    disabled={hcopyBusy || !session.connected}
+                  >
+                    Refresh Auto Info
+                  </button>
+                  <button
+                    className="ucp-btn secondary danger"
+                    onClick={clearHcopyDirectory}
+                    disabled={hcopyBusy || !session.connected}
+                    title="Delete all image files from the auto-naming directory on the instrument"
+                  >
+                    Clear Auto Directory…
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="ucp-hcopy-sub">
+                <label className="ucp-hcopy-label" style={{ flex: 1 }}>
+                  Manual Filename (full path on instrument)
+                  <input
+                    className="ucp-cmd-input"
+                    value={hcopyManualFilename}
+                    onChange={(e) => setHcopyManualFilename(e.target.value)}
+                    placeholder="/var/user/myshot.png"
+                  />
+                </label>
+              </div>
+            )}
+
+            {/* ---- Action buttons ---- */}
+            <div className="ucp-hcopy-actions">
+              <button
+                className="ucp-btn secondary"
+                onClick={applyHcopySettings}
+                disabled={hcopyBusy || !session.connected}
+                title="Send format, region and naming settings to instrument"
+              >
+                Apply Settings
+              </button>
+              <button
+                className="ucp-btn"
+                onClick={executeHcopy}
+                disabled={hcopyBusy || !session.connected}
+                title=":HCOPy:EXECute — save screenshot to instrument file system"
+              >
+                {hcopyBusy ? "Working…" : "Execute (→ Instrument)"}
+              </button>
+              <button
+                className="ucp-btn"
+                onClick={captureHcopyData}
+                disabled={hcopyBusy || !session.connected}
+                title=":HCOPy:DATA? — transfer image directly to PC"
+              >
+                {hcopyBusy ? "Working…" : "Capture (→ PC)"}
+              </button>
+            </div>
+
+            {/* ---- Feedback ---- */}
+            {hcopyMsg && (
+              <div className={`ucp-msg ${hcopyMsgErr ? "error" : "success"}`}>{hcopyMsg}</div>
+            )}
+            {hcopyLastCapture && (
+              <div className="ucp-hcopy-row" style={{ gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <span style={{ fontSize: "0.85rem" }}>
+                  Last capture: <code style={{ wordBreak: "break-all" }}>{hcopyLastCapture}</code>
+                </span>
+                <button
+                  className="ucp-btn secondary"
+                  style={{ flexShrink: 0 }}
+                  onClick={openHcopyLastCapture}
+                >
+                  Open Folder
+                </button>
+              </div>
+            )}
+          </div>
+        </Section>
+
+        {/* ============================================================
+          SECTION 7 – Manual SCPI Console
+            ============================================================ */}
+        <Section icon="⌨" title="Manual SCPI Console" defaultOpen={false}>
+          <div className="ucp-console-grid">
+            <CommandBuilder command={scpiCommand} onCommandChange={setScpiCommand} />
+            <div className="ucp-row" style={{ gap: 12, alignItems: "end", flexWrap: "wrap" }}>
+              <label style={{ minWidth: 160 }}>
+                Timeout (ms)
+                <input
+                  className="ucp-cmd-input"
+                  type="number"
+                  min={100}
+                  step={100}
+                  value={scpiTimeoutMs}
+                  onChange={(e) => setScpiTimeoutMs(Math.max(100, Number(e.target.value) || 3000))}
+                />
+              </label>
+              <label style={{ minWidth: 260, flex: 1 }}>
+                Recent commands
+                <select
+                  className="ucp-cmd-input"
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      setScpiCommand(e.target.value);
+                    }
+                  }}
+                >
+                  <option value="">Select recent command…</option>
+                  {scpiHistory.map((entry) => (
+                    <option key={entry} value={entry}>{entry}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="ucp-cmd-row">
+              <input
+                className="ucp-cmd-input"
+                value={scpiCommand}
+                onChange={(e) => setScpiCommand(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void runScpiCommand(); }}
+                placeholder="Enter SCPI command…"
+              />
+              <button
+                className="ucp-btn"
+                onClick={runScpiCommand}
+                disabled={scpiRunning || !session.connected}
+              >
+                {scpiRunning ? "Sending…" : "Send"}
+              </button>
+            </div>
+            {scpiError && <div className="ucp-msg error">{scpiError}</div>}
+            {scpiResult && (
+              <pre className="ucp-output">
+                {JSON.stringify(scpiResult, null, 2)}
+              </pre>
+            )}
+          </div>
+        </Section>
+
+        {/* ============================================================
+            External Storage Browser – absolute bottom
+            ============================================================ */}
+        <Section icon="⇅" title="External Storage Browser" defaultOpen={false}>
           <div className="ucp-row" style={{ marginBottom: 10 }}>
             <div className="ucp-field" style={{ minWidth: 180 }}>
               <label>Protocol</label>
@@ -1533,231 +2234,6 @@ export default function UnifiedControlPage() {
           )}
         </Section>
 
-        {/* ============================================================
-            SECTION 3 – Scenario Player
-            ============================================================ */}
-        <Section icon="▶" title="Scenario Player">
-          {/* Track display */}
-          <div className="ucp-track-display" style={{ marginBottom: 12 }}>
-            <span className="ucp-track-icon">🎬</span>
-            <div className="ucp-track-info">
-              <div className="ucp-track-name">
-                {selectedScenario
-                  ? selectedScenario.split("/").pop() ?? selectedScenario
-                  : "No scenario selected"}
-              </div>
-              {selectedScenario && (
-                <div className="ucp-track-meta">{selectedScenario}</div>
-              )}
-            </div>
-            <div
-              className="ucp-state-badge"
-              style={{ background: stateColor(playbackState) }}
-            >
-              {stateLabel(playbackState)}
-            </div>
-          </div>
-
-          <div className="ucp-primary-player-actions" style={{ marginBottom: 12 }}>
-            <button
-              className="ucp-btn success"
-              onClick={loadScenario}
-              disabled={!hasSelection || playerBusy}
-              title={session.connected ? "Load scenario onto instrument" : "Load scenario into offline preview"}
-            >
-              {session.connected ? "⏏ Load Selected Scenario" : "⏏ Load to Offline Player"}
-            </button>
-          </div>
-
-          {/* Controls */}
-          <div className="ucp-player-controls" style={{ marginBottom: 12 }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, marginRight: 8 }}>
-              Replay Mode
-              <select
-                value={replayMode === "UNKNOWN" ? "SINGle" : replayMode}
-                onChange={(e) => setReplayMode(e.target.value as ReplayMode)}
-                disabled={!session.connected || playerBusy}
-              >
-                <option value="SINGle">Single</option>
-                <option value="LOOP">Loop</option>
-              </select>
-            </label>
-            <button
-              className="ucp-ctrl-btn secondary"
-              onClick={() => setReplayModeOnDevice(replayMode)}
-              disabled={!session.connected || playerBusy || replayMode === "UNKNOWN"}
-              title="Apply replay mode to instrument"
-            >
-              Apply Mode
-            </button>
-            <button
-              className="ucp-ctrl-btn secondary"
-              onClick={queryReplayMode}
-              disabled={!session.connected || playerBusy}
-              title="Query replay mode from instrument"
-            >
-              Query Replay Mode
-            </button>
-            <button
-              className="ucp-ctrl-btn"
-              onClick={loadScenario}
-              disabled={!hasSelection || playerBusy}
-              title={session.connected ? "Load scenario onto instrument" : "Load scenario into offline preview"}
-            >
-              ⏏ Load
-            </button>
-            <button
-              className="ucp-ctrl-btn play"
-              onClick={() => playerAction("Play", "/scenario/play")}
-              disabled={!hasSelection || playerBusy}
-              title={session.connected ? "Start playback" : "Start offline preview playback"}
-            >
-              ▶ Play
-            </button>
-            <button
-              className="ucp-ctrl-btn"
-              onClick={() => playerAction("Pause", "/scenario/pause")}
-              disabled={playbackState !== "playing" || playerBusy}
-              title={session.connected ? "Pause playback" : "Pause offline preview playback"}
-            >
-              ⏸ Pause
-            </button>
-            <button
-              className="ucp-ctrl-btn stop"
-              onClick={() => playerAction("Stop", "/scenario/stop")}
-              disabled={(playbackState !== "playing" && playbackState !== "paused") || playerBusy}
-              title={session.connected ? "Stop playback" : "Stop offline preview playback"}
-            >
-              ⏹ Stop
-            </button>
-            <button
-              className="ucp-ctrl-btn"
-              onClick={() => playerAction("Restart", "/scenario/restart")}
-              disabled={!hasSelection || playerBusy}
-              title={session.connected ? "Restart playback" : "Restart offline preview playback"}
-            >
-              🔄 Restart
-            </button>
-            <button
-              className="ucp-ctrl-btn secondary"
-              onClick={queryStatus}
-              disabled={!session.connected || playerBusy}
-              title="Query current state from instrument"
-              style={{ marginLeft: "auto" }}
-            >
-              🔍 Query State
-            </button>
-          </div>
-
-          {playerMsg && (
-            <div className="ucp-msg error" style={{ marginTop: 8 }}>{playerMsg}</div>
-          )}
-        </Section>
-
-        {/* Scenario Inspector section removed per UX request. */}
-
-        {/* ============================================================
-          SECTION 5 – Scenario Generator
-            ============================================================ */}
-        <Section icon="🎬" title="Scenario Generator" defaultOpen={false}>
-          <div className="ucp-generator-embed">
-            <ScenarioGenerator />
-          </div>
-        </Section>
-
-        {/* ============================================================
-          SECTION 6 – Manual SCPI Console
-            ============================================================ */}
-        <Section icon="⌨" title="Manual SCPI Console" defaultOpen={false}>
-          <div className="ucp-console-grid">
-            <CommandBuilder command={scpiCommand} onCommandChange={setScpiCommand} />
-            <div className="ucp-row" style={{ gap: 12, alignItems: "end", flexWrap: "wrap" }}>
-              <label style={{ minWidth: 160 }}>
-                Timeout (ms)
-                <input
-                  className="ucp-cmd-input"
-                  type="number"
-                  min={100}
-                  step={100}
-                  value={scpiTimeoutMs}
-                  onChange={(e) => setScpiTimeoutMs(Math.max(100, Number(e.target.value) || 3000))}
-                />
-              </label>
-              <label style={{ minWidth: 260, flex: 1 }}>
-                Recent commands
-                <select
-                  className="ucp-cmd-input"
-                  value=""
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      setScpiCommand(e.target.value);
-                    }
-                  }}
-                >
-                  <option value="">Select recent command…</option>
-                  {scpiHistory.map((entry) => (
-                    <option key={entry} value={entry}>{entry}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <div className="ucp-cmd-row">
-              <input
-                className="ucp-cmd-input"
-                value={scpiCommand}
-                onChange={(e) => setScpiCommand(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") void runScpiCommand(); }}
-                placeholder="Enter SCPI command…"
-              />
-              <button
-                className="ucp-btn"
-                onClick={runScpiCommand}
-                disabled={scpiRunning || !session.connected}
-              >
-                {scpiRunning ? "Sending…" : "Send"}
-              </button>
-            </div>
-            {scpiError && <div className="ucp-msg error">{scpiError}</div>}
-            {scpiResult && (
-              <pre className="ucp-output">
-                {JSON.stringify(scpiResult, null, 2)}
-              </pre>
-            )}
-          </div>
-        </Section>
-
-        {/* ============================================================
-          SECTION 7 – Logs / Diagnostics
-            ============================================================ */}
-        <Section icon="📋" title="Command Log / Diagnostics" defaultOpen={false}>
-          <div className="ucp-row" style={{ marginBottom: 10 }}>
-            <button className="ucp-btn secondary" onClick={refreshLog}>Refresh</button>
-            <button className="ucp-btn secondary danger" onClick={clearLog} style={{ marginLeft: 4 }}>Clear</button>
-          </div>
-          <div className="ucp-log-list">
-            {commandLog.length === 0 ? (
-              <div className="ucp-empty-state">No commands logged yet.</div>
-            ) : (
-              commandLog.map((entry, i) => (
-                <div key={i} className={`ucp-log-entry ${entry.ok ? "ok" : "error"}`}>
-                  <span className="ucp-log-ts">{entry.timestamp}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div className="ucp-log-cmd">{entry.command}</div>
-                    {entry.response && (
-                      <div className="ucp-log-response">→ {entry.response}</div>
-                    )}
-                    {entry.error && (
-                      <div className="ucp-log-error">✗ {entry.error}</div>
-                    )}
-                  </div>
-                  <span className={`ucp-log-type ${entry.command_type}`}>
-                    {entry.command_type}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        </Section>
       </div>
     </div>
   );

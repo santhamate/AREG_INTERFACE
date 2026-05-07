@@ -256,6 +256,8 @@ class SimulationOverviewResponse(BaseModel):
     last_command_ok: bool | None = None
     # Metadata
     timestamp: str = ""
+    # Local file mapping (same basename found in scenarios/ directory)
+    local_scenario_path: str | None = None
 
 
 class ScenarioValidationRequest(BaseModel):
@@ -333,7 +335,8 @@ class UploadOsiFileRequest(BaseModel):
     """Request to upload a local .osi file to the device."""
 
     local_path: str = Field(description="Absolute or relative local file path")
-    remote_path: str = Field(description="Destination path on the device (must end with .osi)")
+    remote_path: str | None = Field(default=None, description="Destination path on the device (must end with .osi). If omitted, backend auto-selects an available directory (USB preferred).")
+    preferred_directory: str | None = Field(default=None, description="Optional preferred destination directory (for example /usb). Used only when remote_path is omitted.")
 
 
 class UploadOsiFileResponse(BaseModel):

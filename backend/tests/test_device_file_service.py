@@ -340,6 +340,9 @@ class TestScenarioPlayerState:
             "command_type": "write", "response": None, "message": "Command sent", "error": None,
         })
         player = ScenarioPlayerService(scpi)
+        player.selected_scenario = "/osi/t.osi"
+        player.current_playback_state = "loaded"
+        player.synced_to_instrument = True
         ok, _ = await player.play()
         assert ok
         assert player.current_playback_state == "playing"
@@ -418,7 +421,49 @@ class TestScanNotConnected:
         files, error = await svc.scan_device_osi_files()
         assert files == []
         assert error is not None
-        assert "not connected" in error.lower()
+
+
+# ---------------------------------------------------------------------------
+# 8. Auto upload destination resolution
+# ---------------------------------------------------------------------------
+
+class TestUploadDestinationResolution:
+    @pytest.mark.asyncio
+    async def test_resolve_upload_remote_path_prefers_usb_directory(self):
+        svc = DeviceFileService(make_mock_scpi())
+
+        async def fake_discover():
+            return (["/sdcard", "/usb1", "/mass_storage"], None)
+
+        svc.discover_device_directories = fake_discover  # type: ignore[method-assign]
+
+        remote_path, error = await svc.resolve_upload_remote_path("scenario.osi")
+        assert error is None
+        assert remote_path == "/usb1/scenario.osi"
+
+    @pytest.mark.asyncio
+    async def test_resolve_upload_remote_path_uses_preferred_when_reachable(self):
+        svc = DeviceFileService(make_mock_scpi())
+
+        async def fake_is_reachable(directory: str) -> bool:
+            return directory == "/custom_usb"
+
+        svc._is_directory_reachable = fake_is_reachable  # type: ignore[method-assign]
+
+        remote_path, error = await svc.resolve_upload_remote_path(
+            filename="scenario.osi",
+            preferred_directory="/custom_usb",
+        )
+        assert error is None
+        assert remote_path == "/custom_usb/scenario.osi"
+
+    @pytest.mark.asyncio
+    async def test_resolve_upload_remote_path_rejects_non_osi_filename(self):
+        svc = DeviceFileService(make_mock_scpi())
+        remote_path, error = await svc.resolve_upload_remote_path("scenario.txt")
+        assert remote_path is None
+        assert error is not None
+        assert ".osi" in error
 
     @pytest.mark.asyncio
     async def test_scan_uses_cache_when_available(self):

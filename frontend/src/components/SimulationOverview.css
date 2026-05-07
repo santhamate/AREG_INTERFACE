@@ -66,6 +66,19 @@
   margin-bottom: 10px;
 }
 
+.sim-preview-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.sim-preview-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
 .sim-stat-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(120px, 1fr));
@@ -131,6 +144,44 @@
   margin-top: 10px;
   display: grid;
   gap: 6px;
+}
+
+.sim-preview-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sim-preview-btn {
+  border: 1px solid rgba(100, 116, 139, 0.45);
+  background: rgba(30, 41, 59, 0.6);
+  color: #e2e8f0;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.sim-preview-btn.play {
+  border-color: rgba(16, 185, 129, 0.5);
+}
+
+.sim-preview-btn.stop {
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+.sim-preview-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.sim-preview-loop {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  color: #94a3b8;
+  margin-left: 2px;
 }
 
 .sim-timeline-row input[type="range"] {

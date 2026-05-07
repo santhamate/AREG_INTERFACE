@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import ScenarioSweepPanel from "./ScenarioSweepPanel";
 import "./TCV907Page.css";
 
 export default function TCV907Page() {
@@ -12,6 +13,14 @@ export default function TCV907Page() {
       </div>
 
       <div className="tcv907-grid">
+        {/* Automated Scenario Sweep */}
+        <div className="tcv907-card tcv907-card--wide">
+          <div className="tcv907-card-header">Automated Scenario Sweep</div>
+          <div className="tcv907-card-content">
+            <ScenarioSweepPanel connected={connected} mode="full" />
+          </div>
+        </div>
+
         {/* Connection Panel */}
         <div className="tcv907-card">
           <div className="tcv907-card-header">Connection Status</div>
