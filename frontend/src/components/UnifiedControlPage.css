@@ -851,6 +851,68 @@
   padding-top: 4px;
 }
 
+.ucp-hcopy-dialog-table-wrap {
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-deep);
+}
+
+.ucp-hcopy-dialog-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 980px;
+}
+
+.ucp-hcopy-dialog-table th,
+.ucp-hcopy-dialog-table td {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+  font-size: 12px;
+}
+
+.ucp-hcopy-dialog-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-raised);
+  color: var(--text-muted);
+}
+
+.ucp-hcopy-dialog-table tbody tr {
+  cursor: pointer;
+}
+
+.ucp-hcopy-dialog-table tbody tr:hover {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.ucp-hcopy-dialog-selected {
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.ucp-hcopy-dialog-actions-inline {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ucp-hcopy-workflow-log {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.ucp-hcopy-workflow-log-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+
 /* ---------- Scroll helpers ---------- */
 ::-webkit-scrollbar {
   width: 6px;

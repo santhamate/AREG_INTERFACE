@@ -9,10 +9,12 @@ Key separation:
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from backend.app.core.display_dialog_manager import DisplayDialogManager
 from backend.app.core.scpi_service import ScpiService
 
 
@@ -44,6 +46,103 @@ class HCopyManager:
         self._year_enabled: bool = False
         self._month_enabled: bool = False
         self._day_enabled: bool = False
+
+    async def capture_selected_screen(
+        self,
+        dialog_manager: DisplayDialogManager,
+        target_type: str,
+        capture_mode: str,
+        region: str,
+        screen_switch_delay_ms: int = 500,
+        verify_dialog_opened: bool = False,
+        close_dialog_after_capture: bool = False,
+        dialog_id: str | None = None,
+        preset_name: str | None = None,
+        fmt: str | None = None,
+        auto_naming: bool | None = None,
+        manual_filename: str | None = None,
+        auto_directory: str | None = None,
+        local_dir: str | None = None,
+        local_filename: str | None = None,
+        timeout_ms: int = 10000,
+    ) -> dict[str, Any]:
+        """Switch dialog if requested, then capture hardcopy in selected mode."""
+        capture_log: list[dict[str, Any]] = []
+
+        if fmt:
+            ok, err = await self.set_format(fmt)
+            capture_log.append({"timestamp": datetime.now().isoformat(timespec="seconds"), "command": f":HCOPy:DEVice:LANGuage {fmt.upper()}", "ok": ok, "error": err})
+            if not ok:
+                return {"ok": False, "error": err, "log": capture_log}
+
+        if auto_naming is not None:
+            ok, err = await self.set_auto_naming_enabled(auto_naming)
+            capture_log.append({
+                "timestamp": datetime.now().isoformat(timespec="seconds"),
+                "command": f":HCOPy:FILE:NAME:AUTO:STATe {self._bool_state(auto_naming)}",
+                "ok": ok,
+                "error": err,
+            })
+            if not ok:
+                return {"ok": False, "error": err, "log": capture_log}
+
+        if auto_directory:
+            ok, err = await self.set_auto_directory(auto_directory)
+            capture_log.append({"timestamp": datetime.now().isoformat(timespec="seconds"), "command": f":HCOPy:FILE:NAME:AUTO:DIRectory {self._q(auto_directory)}", "ok": ok, "error": err})
+            if not ok:
+                return {"ok": False, "error": err, "log": capture_log}
+
+        if manual_filename:
+            ok, err = await self.set_manual_filename(manual_filename)
+            capture_log.append({"timestamp": datetime.now().isoformat(timespec="seconds"), "command": f":HCOPy:FILE:NAME {self._q(manual_filename)}", "ok": ok, "error": err})
+            if not ok:
+                return {"ok": False, "error": err, "log": capture_log}
+
+        nav_result = await dialog_manager.run_pre_hardcopy_navigation(
+            target_type=target_type,
+            dialog_id=dialog_id,
+            preset_name=preset_name,
+            delay_ms=screen_switch_delay_ms,
+            verify=verify_dialog_opened,
+        )
+        capture_log.extend(nav_result.get("log", []))
+        if not nav_result.get("ok"):
+            return {
+                "ok": False,
+                "error": nav_result.get("error") or "Failed to switch screen/dialog before hardcopy.",
+                "log": capture_log,
+            }
+
+        if screen_switch_delay_ms > 0:
+            await asyncio.sleep(screen_switch_delay_ms / 1000)
+
+        ok, err = await self.set_region(region)
+        capture_log.append({"timestamp": datetime.now().isoformat(timespec="seconds"), "command": f":HCOPy:REGion {region}", "ok": ok, "error": err})
+        if not ok:
+            return {"ok": False, "error": err, "log": capture_log}
+
+        mode = (capture_mode or "execute").strip().lower()
+        if mode == "data":
+            result = await self.capture_data(local_dir=local_dir, local_filename=local_filename, timeout_ms=timeout_ms)
+        else:
+            result = await self.execute_to_file()
+
+        capture_log.append({
+            "timestamp": datetime.now().isoformat(timespec="seconds"),
+            "command": ":HCOPy:DATA?" if mode == "data" else ":HCOPy:EXECute",
+            "ok": result.get("ok", False),
+            "error": result.get("error"),
+            "message": result.get("message"),
+        })
+
+        selected_dialog_id = nav_result.get("target_dialog_id")
+        if close_dialog_after_capture and selected_dialog_id:
+            close_result = await dialog_manager.close_dialog(str(selected_dialog_id))
+            capture_log.extend(close_result.get("log", []))
+
+        result["log"] = capture_log
+        result["selected_dialog_id"] = selected_dialog_id
+        return result
 
     # -----------------------------------------------------------------------
     # Internal helpers

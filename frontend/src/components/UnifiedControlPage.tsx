@@ -161,6 +161,34 @@ interface ScenarioWorkspaceDownloadResult {
   error?: string | null;
 }
 
+type HcopyTargetType = "current_screen" | "current_active_dialog" | "preset" | "manual";
+type HcopyCaptureMode = "execute" | "data";
+
+interface HcopyDialogEntry {
+  raw_id: string;
+  dialog_name: string;
+  qualifier?: string | null;
+  instance_data?: string | null;
+  tab_data?: string | null;
+  user_label: string;
+}
+
+interface HcopyDialogPreset {
+  name: string;
+  dialog_id: string;
+  region: "ALL" | "DIALog";
+}
+
+interface HcopyWorkflowLogEntry {
+  timestamp?: string;
+  command: string;
+  command_type?: string;
+  ok: boolean;
+  response?: string | null;
+  message?: string | null;
+  error?: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -347,6 +375,19 @@ export default function UnifiedControlPage() {
   const [hcopyMsg, setHcopyMsg] = useState<string | null>(null);
   const [hcopyMsgErr, setHcopyMsgErr] = useState(false);
   const [hcopyLastCapture, setHcopyLastCapture] = useState<string | null>(null);
+  const [hcopyTargetType, setHcopyTargetType] = useState<HcopyTargetType>("current_screen");
+  const [hcopyCaptureMode, setHcopyCaptureMode] = useState<HcopyCaptureMode>("execute");
+  const [hcopyScreenSwitchDelayMs, setHcopyScreenSwitchDelayMs] = useState(500);
+  const [hcopyVerifyDialogOpened, setHcopyVerifyDialogOpened] = useState(false);
+  const [hcopyCloseDialogAfterCapture, setHcopyCloseDialogAfterCapture] = useState(false);
+  const [hcopyDialogs, setHcopyDialogs] = useState<HcopyDialogEntry[]>([]);
+  const [hcopySelectedDialogId, setHcopySelectedDialogId] = useState("");
+  const [hcopyManualDialogId, setHcopyManualDialogId] = useState("");
+  const [hcopyPresets, setHcopyPresets] = useState<HcopyDialogPreset[]>([]);
+  const [hcopySelectedPresetName, setHcopySelectedPresetName] = useState("");
+  const [hcopyNewPresetName, setHcopyNewPresetName] = useState("");
+  const [hcopyDialogMsg, setHcopyDialogMsg] = useState<string | null>(null);
+  const [hcopyWorkflowLog, setHcopyWorkflowLog] = useState<HcopyWorkflowLogEntry[]>([]);
 
   // -------------------------------------------------------------------------
   // Session polling
@@ -1428,6 +1469,200 @@ export default function UnifiedControlPage() {
     }
   };
 
+  const refreshHcopyPresets = async () => {
+    try {
+      const result = await hcopyGet("hcopy/dialog-presets");
+      const presets = (result.presets as HcopyDialogPreset[] | undefined) ?? [];
+      setHcopyPresets(presets);
+      if (!hcopySelectedPresetName && presets.length > 0) {
+        setHcopySelectedPresetName(presets[0].name);
+      }
+    } catch {
+      /* silent */
+    }
+  };
+
+  const scanHcopyDialogs = async () => {
+    setHcopyBusy(true);
+    setHcopyDialogMsg(null);
+    try {
+      const result = await hcopyGet("hcopy/dialogs/open");
+      if (!result.ok) {
+        setHcopyDialogMsg((result.error as string) ?? "Dialog scan failed");
+        return;
+      }
+
+      const dialogs = (result.dialogs as HcopyDialogEntry[] | undefined) ?? [];
+      setHcopyDialogs(dialogs);
+      if (dialogs.length > 0) {
+        setHcopySelectedDialogId(dialogs[0].raw_id);
+        setHcopyDialogMsg(`Found ${dialogs.length} open dialog(s).`);
+      } else {
+        setHcopyDialogMsg("No open dialogs detected.");
+      }
+    } catch (e) {
+      setHcopyDialogMsg(e instanceof Error ? e.message : "Dialog scan failed");
+    } finally {
+      setHcopyBusy(false);
+    }
+  };
+
+  const openHcopyDialog = async (dialogId: string) => {
+    setHcopyBusy(true);
+    setHcopyDialogMsg(null);
+    try {
+      const result = await hcopyPost("hcopy/dialogs/open", {
+        dialog_id: dialogId,
+        delay_ms: hcopyScreenSwitchDelayMs,
+        verify: hcopyVerifyDialogOpened,
+      });
+      if (result.ok) {
+        setHcopyDialogMsg(`Opened dialog ${dialogId}`);
+        const dialogs = (result.dialogs as HcopyDialogEntry[] | undefined) ?? [];
+        if (dialogs.length > 0) {
+          setHcopyDialogs(dialogs);
+        }
+      } else {
+        setHcopyDialogMsg(`Open failed for ${dialogId}: ${(result.error as string) ?? "Unknown error"}`);
+      }
+    } catch (e) {
+      setHcopyDialogMsg(e instanceof Error ? e.message : "Open dialog failed");
+    } finally {
+      setHcopyBusy(false);
+    }
+  };
+
+  const closeHcopyDialog = async (dialogId: string) => {
+    setHcopyBusy(true);
+    setHcopyDialogMsg(null);
+    try {
+      const result = await hcopyPost("hcopy/dialogs/close", { dialog_id: dialogId });
+      if (result.ok) {
+        setHcopyDialogMsg(`Closed dialog ${dialogId}`);
+      } else {
+        setHcopyDialogMsg(`Close failed for ${dialogId}: ${(result.error as string) ?? "Unknown error"}`);
+      }
+    } catch (e) {
+      setHcopyDialogMsg(e instanceof Error ? e.message : "Close dialog failed");
+    } finally {
+      setHcopyBusy(false);
+    }
+  };
+
+  const closeAllHcopyDialogs = async () => {
+    const confirmed = window.confirm("Close all open dialogs?");
+    if (!confirmed) return;
+
+    setHcopyBusy(true);
+    setHcopyDialogMsg(null);
+    try {
+      const result = await hcopyPost("hcopy/dialogs/close-all", { confirm: true });
+      if (result.ok) {
+        setHcopyDialogs([]);
+        setHcopyDialogMsg("Closed all dialogs.");
+      } else {
+        setHcopyDialogMsg((result.error as string) ?? "Close all dialogs failed");
+      }
+    } catch (e) {
+      setHcopyDialogMsg(e instanceof Error ? e.message : "Close all dialogs failed");
+    } finally {
+      setHcopyBusy(false);
+    }
+  };
+
+  const saveHcopyDialogPreset = async (dialogId: string) => {
+    const name = hcopyNewPresetName.trim() || window.prompt("Preset name", "")?.trim() || "";
+    if (!name) {
+      setHcopyDialogMsg("Preset name is required.");
+      return;
+    }
+
+    setHcopyBusy(true);
+    setHcopyDialogMsg(null);
+    try {
+      const result = await hcopyPost("hcopy/dialog-presets", {
+        name,
+        dialog_id: dialogId,
+        region: hcopyRegion,
+      });
+      if (result.ok) {
+        setHcopyNewPresetName("");
+        setHcopySelectedPresetName(name);
+        setHcopyDialogMsg(`Saved preset ${name}.`);
+        await refreshHcopyPresets();
+      } else {
+        setHcopyDialogMsg((result.error as string) ?? "Save preset failed");
+      }
+    } catch (e) {
+      setHcopyDialogMsg(e instanceof Error ? e.message : "Save preset failed");
+    } finally {
+      setHcopyBusy(false);
+    }
+  };
+
+  const resolveHcopyTargetDialogId = (): string | undefined => {
+    if (hcopyTargetType === "manual") {
+      return hcopyManualDialogId.trim() || undefined;
+    }
+    if (hcopyTargetType === "current_active_dialog") {
+      return hcopySelectedDialogId || undefined;
+    }
+    return undefined;
+  };
+
+  const captureSelectedHcopyScreen = async (dialogIdOverride?: string) => {
+    setHcopyBusy(true);
+    setHcopyMsg(null);
+    setHcopyMsgErr(false);
+    setHcopyDialogMsg(null);
+    try {
+      const result = await hcopyPost("hcopy/capture-selected", {
+        target_type: hcopyTargetType,
+        dialog_id: dialogIdOverride || resolveHcopyTargetDialogId(),
+        preset_name: hcopyTargetType === "preset" ? hcopySelectedPresetName : undefined,
+        mode: hcopyCaptureMode,
+        region: hcopyRegion,
+        screen_switch_delay_ms: hcopyScreenSwitchDelayMs,
+        verify_dialog_opened: hcopyVerifyDialogOpened,
+        close_dialog_after_capture: hcopyCloseDialogAfterCapture,
+        format: hcopyFormat,
+        auto_naming: hcopyAutoNaming,
+        manual_filename: hcopyAutoNaming ? undefined : hcopyManualFilename,
+        auto_directory: hcopyAutoNaming ? hcopyAutoDir : undefined,
+        local_dir: "./screenshots",
+        local_filename: hcopyPrefixEnabled && hcopyPrefix.trim() ? hcopyPrefix.trim() : "hardcopy_capture",
+      });
+
+      const workflowLog = (result.log as HcopyWorkflowLogEntry[] | undefined) ?? [];
+      setHcopyWorkflowLog(workflowLog);
+
+      if (result.ok) {
+        if (result.file_path) {
+          setHcopyLastCapture(result.file_path as string);
+        }
+        setHcopyMsg((result.message as string) ?? "Capture completed.");
+      } else {
+        setHcopyMsgErr(true);
+        setHcopyMsg((result.error as string) ?? "Capture selected screen failed");
+      }
+    } catch (e) {
+      setHcopyMsgErr(true);
+      setHcopyMsg(e instanceof Error ? e.message : "Capture selected screen failed");
+    } finally {
+      setHcopyBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    void refreshHcopyPresets();
+  }, []);
+
+  useEffect(() => {
+    if (session.connected) {
+      void refreshHcopyPresets();
+    }
+  }, [session.connected]);
+
   // -------------------------------------------------------------------------
   // Render helpers
   // -------------------------------------------------------------------------
@@ -1847,6 +2082,190 @@ export default function UnifiedControlPage() {
                   <option value="DIALog">DIALog (active dialog)</option>
                 </select>
               </label>
+              <label className="ucp-hcopy-label">
+                Target selector
+                <select
+                  className="ucp-cmd-input"
+                  value={hcopyTargetType}
+                  onChange={(e) => setHcopyTargetType(e.target.value as HcopyTargetType)}
+                >
+                  <option value="current_screen">Current screen</option>
+                  <option value="current_active_dialog">Current active dialog</option>
+                  <option value="preset">Saved dialog preset</option>
+                  <option value="manual">Manually entered dialog ID</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="ucp-hcopy-sub">
+              <div className="ucp-hcopy-row" style={{ alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <button
+                  className="ucp-btn secondary"
+                  onClick={scanHcopyDialogs}
+                  disabled={hcopyBusy || !session.connected}
+                >
+                  Scan open dialogs
+                </button>
+                <button
+                  className="ucp-btn secondary danger"
+                  onClick={closeAllHcopyDialogs}
+                  disabled={hcopyBusy || !session.connected}
+                >
+                  Close All Dialogs…
+                </button>
+                <label className="ucp-hcopy-label" style={{ minWidth: 140 }}>
+                  Output mode
+                  <select
+                    className="ucp-cmd-input"
+                    value={hcopyCaptureMode}
+                    onChange={(e) => setHcopyCaptureMode(e.target.value as HcopyCaptureMode)}
+                  >
+                    <option value="execute">Save to instrument (:HCOPy:EXECute)</option>
+                    <option value="data">Capture to PC (:HCOPy:DATA?)</option>
+                  </select>
+                </label>
+                <label className="ucp-hcopy-label" style={{ minWidth: 120 }}>
+                  Screen switch delay (ms)
+                  <input
+                    className="ucp-cmd-input"
+                    type="number"
+                    min={0}
+                    step={50}
+                    value={hcopyScreenSwitchDelayMs}
+                    onChange={(e) => setHcopyScreenSwitchDelayMs(Math.max(0, Number(e.target.value) || 0))}
+                  />
+                </label>
+              </div>
+
+              <div className="ucp-hcopy-row" style={{ alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <label className="ucp-hcopy-check-label">
+                  <input
+                    type="checkbox"
+                    checked={hcopyVerifyDialogOpened}
+                    onChange={(e) => setHcopyVerifyDialogOpened(e.target.checked)}
+                  />
+                  Verify dialog opened before hardcopy
+                </label>
+                <label className="ucp-hcopy-check-label">
+                  <input
+                    type="checkbox"
+                    checked={hcopyCloseDialogAfterCapture}
+                    onChange={(e) => setHcopyCloseDialogAfterCapture(e.target.checked)}
+                  />
+                  Close dialog after hardcopy
+                </label>
+              </div>
+
+              {hcopyTargetType === "preset" && (
+                <div className="ucp-hcopy-row" style={{ alignItems: "end" }}>
+                  <label className="ucp-hcopy-label" style={{ flex: 1 }}>
+                    Preset
+                    <select
+                      className="ucp-cmd-input"
+                      value={hcopySelectedPresetName}
+                      onChange={(e) => setHcopySelectedPresetName(e.target.value)}
+                    >
+                      <option value="">Select preset…</option>
+                      {hcopyPresets.map((preset) => (
+                        <option key={preset.name} value={preset.name}>{preset.name} ({preset.dialog_id})</option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    className="ucp-btn secondary"
+                    onClick={refreshHcopyPresets}
+                    disabled={hcopyBusy || !session.connected}
+                  >
+                    Refresh Presets
+                  </button>
+                </div>
+              )}
+
+              {hcopyTargetType === "manual" && (
+                <label className="ucp-hcopy-label" style={{ flex: 1 }}>
+                  Manual Dialog ID
+                  <input
+                    className="ucp-cmd-input"
+                    value={hcopyManualDialogId}
+                    onChange={(e) => setHcopyManualDialogId(e.target.value)}
+                    placeholder='Dialog ID from :DISPlay:DIALog:ID?'
+                  />
+                </label>
+              )}
+
+              <div className="ucp-hcopy-row" style={{ alignItems: "end" }}>
+                <label className="ucp-hcopy-label" style={{ flex: 1 }}>
+                  New preset name
+                  <input
+                    className="ucp-cmd-input"
+                    value={hcopyNewPresetName}
+                    onChange={(e) => setHcopyNewPresetName(e.target.value)}
+                    placeholder="e.g. Scenario screen"
+                  />
+                </label>
+                <button
+                  className="ucp-btn secondary"
+                  onClick={() => saveHcopyDialogPreset(hcopySelectedDialogId)}
+                  disabled={!hcopySelectedDialogId || hcopyBusy || !session.connected}
+                >
+                  Save Selected As Preset
+                </button>
+              </div>
+
+              {hcopyDialogMsg && <div className="ucp-msg info">{hcopyDialogMsg}</div>}
+
+              <div className="ucp-hcopy-dialog-table-wrap">
+                <table className="ucp-hcopy-dialog-table">
+                  <thead>
+                    <tr>
+                      <th>Raw dialog ID</th>
+                      <th>Dialog name</th>
+                      <th>Qualifier</th>
+                      <th>Instance / Tab</th>
+                      <th>User label</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {hcopyDialogs.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="ucp-empty-state">No open dialogs detected.</td>
+                      </tr>
+                    ) : hcopyDialogs.map((dialog) => (
+                      <tr
+                        key={dialog.raw_id}
+                        className={hcopySelectedDialogId === dialog.raw_id ? "ucp-hcopy-dialog-selected" : ""}
+                        onClick={() => setHcopySelectedDialogId(dialog.raw_id)}
+                      >
+                        <td>{dialog.raw_id}</td>
+                        <td>{dialog.dialog_name}</td>
+                        <td>{dialog.qualifier ?? "-"}</td>
+                        <td>{dialog.instance_data ?? dialog.tab_data ?? "-"}</td>
+                        <td>{dialog.user_label}</td>
+                        <td>
+                          <div className="ucp-hcopy-dialog-actions-inline">
+                            <button className="ucp-btn secondary" onClick={(e) => { e.stopPropagation(); void openHcopyDialog(dialog.raw_id); }} disabled={hcopyBusy || !session.connected}>Open</button>
+                            <button className="ucp-btn secondary" onClick={(e) => { e.stopPropagation(); void closeHcopyDialog(dialog.raw_id); }} disabled={hcopyBusy || !session.connected}>Close</button>
+                            <button className="ucp-btn secondary" onClick={(e) => { e.stopPropagation(); void saveHcopyDialogPreset(dialog.raw_id); }} disabled={hcopyBusy || !session.connected}>Save preset</button>
+                            <button
+                              className="ucp-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setHcopyTargetType("manual");
+                                setHcopyManualDialogId(dialog.raw_id);
+                                void captureSelectedHcopyScreen(dialog.raw_id);
+                              }}
+                              disabled={hcopyBusy || !session.connected}
+                            >
+                              Capture this dialog
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             {/* ---- Auto naming toggle ---- */}
@@ -1977,6 +2396,14 @@ export default function UnifiedControlPage() {
                 {hcopyBusy ? "Working…" : "Execute (→ Instrument)"}
               </button>
               <button
+                className="ucp-btn success"
+                onClick={() => captureSelectedHcopyScreen()}
+                disabled={hcopyBusy || !session.connected}
+                title="Switch selected screen/dialog and then capture"
+              >
+                {hcopyBusy ? "Working…" : "Capture Selected Screen"}
+              </button>
+              <button
                 className="ucp-btn"
                 onClick={captureHcopyData}
                 disabled={hcopyBusy || !session.connected}
@@ -2002,6 +2429,25 @@ export default function UnifiedControlPage() {
                 >
                   Open Folder
                 </button>
+              </div>
+            )}
+
+            {hcopyWorkflowLog.length > 0 && (
+              <div className="ucp-hcopy-workflow-log">
+                <div className="ucp-hcopy-workflow-log-title">Screen-switch workflow log</div>
+                <div className="ucp-log-list" style={{ maxHeight: 200 }}>
+                  {hcopyWorkflowLog.map((entry, idx) => (
+                    <div key={`${entry.command}-${idx}`} className={`ucp-log-entry ${entry.ok ? "ok" : "error"}`}>
+                      <span className="ucp-log-ts">{entry.timestamp ?? new Date().toISOString()}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="ucp-log-cmd">{entry.command}</div>
+                        {entry.message && <div className="ucp-log-response">{entry.message}</div>}
+                        {entry.error && <div className="ucp-log-error">✗ {entry.error}</div>}
+                      </div>
+                      <span className="ucp-log-type write">{entry.command_type ?? "action"}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>

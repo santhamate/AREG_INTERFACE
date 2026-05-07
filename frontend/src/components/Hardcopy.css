@@ -150,6 +150,68 @@
   margin-bottom: 20px;
 }
 
+.hardcopy-dialog-section {
+  background: #334155;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.hardcopy-dialog-section h3 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.hardcopy-dialog-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.hardcopy-dialog-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  margin-bottom: 10px;
+}
+
+.hardcopy-dialog-table-wrap {
+  margin-top: 12px;
+  overflow: auto;
+  border: 1px solid #475569;
+  border-radius: 8px;
+}
+
+.hardcopy-dialog-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 900px;
+}
+
+.hardcopy-dialog-table th,
+.hardcopy-dialog-table td {
+  text-align: left;
+  padding: 8px;
+  border-bottom: 1px solid #475569;
+  vertical-align: top;
+  font-size: 12px;
+}
+
+.hardcopy-dialog-table th {
+  background: #1e293b;
+  color: #cbd5e1;
+  position: sticky;
+  top: 0;
+}
+
+.hardcopy-dialog-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .filename-preview {
   display: flex;
   align-items: center;

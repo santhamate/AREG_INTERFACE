@@ -16,6 +16,7 @@ from backend.app.core.scpi_service import ScpiService
 from backend.app.core.scenario_player import ScenarioPlayerService
 from backend.app.core.hardcopy_service import HardcopyService
 from backend.app.core.hcopy_manager import HCopyManager
+from backend.app.core.display_dialog_manager import DisplayDialogManager
 from backend.app.core.scenario_generator_service import ScenarioGeneratorService
 from backend.app.core.device_file_service import DeviceFileService
 from backend.app.core.file_transfer_manager import AregFileTransferService, TransferConfig
@@ -99,6 +100,7 @@ command_registry = CommandRegistryService()
 scenario_player_service = ScenarioPlayerService(service, command_registry=command_registry)
 hardcopy_service = HardcopyService(service)
 hcopy_manager = HCopyManager(service)
+display_dialog_manager = DisplayDialogManager(service)
 generator_service = ScenarioGeneratorService()
 device_file_service = DeviceFileService(service)
 file_transfer_service = AregFileTransferService()
@@ -610,6 +612,119 @@ async def hcopy_capture_data(payload: dict[str, object] | None = None) -> dict[s
             timeout_ms=timeout_ms,
         )
         return result
+    except Exception as ex:
+        raise HTTPException(status_code=500, detail=str(ex)) from ex
+
+
+@router.get("/hcopy/dialogs/open")
+async def hcopy_query_open_dialogs() -> dict[str, object]:
+    """:DISPlay:DIALog:ID? – query open display dialogs and parse identifiers."""
+    try:
+        result = await display_dialog_manager.query_open_dialogs()
+        return result
+    except Exception as ex:
+        raise HTTPException(status_code=500, detail=str(ex)) from ex
+
+
+@router.post("/hcopy/dialogs/open")
+async def hcopy_open_dialog(payload: dict[str, object]) -> dict[str, object]:
+    """:DISPlay:DIALog:OPEN "<DialogId>" – open a display dialog."""
+    dialog_id = str(payload.get("dialog_id") or "").strip()
+    delay_ms = int(payload.get("delay_ms") or 500)
+    verify = bool(payload.get("verify") or False)
+    try:
+        return await display_dialog_manager.open_dialog(dialog_id, delay_ms=delay_ms, verify=verify)
+    except Exception as ex:
+        raise HTTPException(status_code=500, detail=str(ex)) from ex
+
+
+@router.post("/hcopy/dialogs/close")
+async def hcopy_close_dialog(payload: dict[str, object]) -> dict[str, object]:
+    """:DISPlay:DIALog:CLOSe "<DialogId>" – close a display dialog."""
+    dialog_id = str(payload.get("dialog_id") or "").strip()
+    try:
+        return await display_dialog_manager.close_dialog(dialog_id)
+    except Exception as ex:
+        raise HTTPException(status_code=500, detail=str(ex)) from ex
+
+
+@router.post("/hcopy/dialogs/close-all")
+async def hcopy_close_all_dialogs(payload: dict[str, object] | None = None) -> dict[str, object]:
+    """:DISPlay:DIALog:CLOSe:ALL – close all dialogs (requires caller confirmation)."""
+    payload = payload or {}
+    confirmed = bool(payload.get("confirm") or False)
+    if not confirmed:
+        return {"ok": False, "error": "Confirmation required before closing all dialogs.", "log": []}
+    try:
+        return await display_dialog_manager.close_all_dialogs()
+    except Exception as ex:
+        raise HTTPException(status_code=500, detail=str(ex)) from ex
+
+
+@router.get("/hcopy/dialog-presets")
+async def hcopy_list_dialog_presets() -> dict[str, object]:
+    return {"ok": True, "presets": display_dialog_manager.list_dialog_presets()}
+
+
+@router.post("/hcopy/dialog-presets")
+async def hcopy_create_dialog_preset(payload: dict[str, object]) -> dict[str, object]:
+    name = str(payload.get("name") or "").strip()
+    dialog_id = str(payload.get("dialog_id") or "").strip()
+    region = str(payload.get("region") or "ALL").strip()
+    return display_dialog_manager.create_dialog_preset(name=name, dialog_id=dialog_id, region=region)
+
+
+@router.post("/hcopy/pre-hardcopy-navigation")
+async def hcopy_run_pre_hardcopy_navigation(payload: dict[str, object]) -> dict[str, object]:
+    target_type = str(payload.get("target_type") or "current_screen")
+    dialog_id = str(payload.get("dialog_id") or "").strip() or None
+    preset_name = str(payload.get("preset_name") or "").strip() or None
+    delay_ms = int(payload.get("delay_ms") or 500)
+    verify = bool(payload.get("verify") or False)
+
+    try:
+        return await display_dialog_manager.run_pre_hardcopy_navigation(
+            target_type=target_type,
+            dialog_id=dialog_id,
+            preset_name=preset_name,
+            delay_ms=delay_ms,
+            verify=verify,
+        )
+    except Exception as ex:
+        raise HTTPException(status_code=500, detail=str(ex)) from ex
+
+
+@router.post("/hcopy/capture-selected")
+async def hcopy_capture_selected_screen(payload: dict[str, object]) -> dict[str, object]:
+    """Switch selected screen/dialog then capture with HCOPy:EXECute or HCOPy:DATA?."""
+    target_type = str(payload.get("target_type") or "current_screen")
+    dialog_id = str(payload.get("dialog_id") or "").strip() or None
+    preset_name = str(payload.get("preset_name") or "").strip() or None
+    mode = str(payload.get("mode") or "execute").strip().lower()
+    region = str(payload.get("region") or "ALL").strip()
+    screen_switch_delay_ms = int(payload.get("screen_switch_delay_ms") or 500)
+    verify_dialog_opened = bool(payload.get("verify_dialog_opened") or False)
+    close_dialog_after_capture = bool(payload.get("close_dialog_after_capture") or False)
+
+    try:
+        return await hcopy_manager.capture_selected_screen(
+            dialog_manager=display_dialog_manager,
+            target_type=target_type,
+            capture_mode=mode,
+            region=region,
+            screen_switch_delay_ms=screen_switch_delay_ms,
+            verify_dialog_opened=verify_dialog_opened,
+            close_dialog_after_capture=close_dialog_after_capture,
+            dialog_id=dialog_id,
+            preset_name=preset_name,
+            fmt=str(payload.get("format") or "").strip() or None,
+            auto_naming=payload.get("auto_naming") if "auto_naming" in payload else None,
+            manual_filename=str(payload.get("manual_filename") or "").strip() or None,
+            auto_directory=str(payload.get("auto_directory") or "").strip() or None,
+            local_dir=str(payload.get("local_dir") or "").strip() or None,
+            local_filename=str(payload.get("local_filename") or "").strip() or None,
+            timeout_ms=int(payload.get("timeout_ms") or 10000),
+        )
     except Exception as ex:
         raise HTTPException(status_code=500, detail=str(ex)) from ex
 

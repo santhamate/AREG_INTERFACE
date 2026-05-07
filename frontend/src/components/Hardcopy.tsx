@@ -59,6 +59,25 @@ type HardcopyAnalysis = {
   error?: string;
 };
 
+type DialogEntry = {
+  raw_id: string;
+  dialog_name: string;
+  qualifier?: string | null;
+  instance_data?: string | null;
+  tab_data?: string | null;
+  user_label: string;
+};
+
+type DialogPreset = {
+  name: string;
+  dialog_id: string;
+  region: "ALL" | "DIALog";
+};
+
+type CaptureTargetType = "current_screen" | "current_active_dialog" | "preset" | "manual";
+type CaptureRegion = "ALL" | "DIALog";
+type CaptureMode = "execute" | "data";
+
 const API_BASE = "http://127.0.0.1:8000/api";
 
 export default function Hardcopy() {
@@ -75,6 +94,19 @@ export default function Hardcopy() {
   const [connected, setConnected] = useState(false);
   const [analysis, setAnalysis] = useState<HardcopyAnalysis | null>(null);
   const [captureLog, setCaptureLog] = useState<HardcopyLogEntry[]>([]);
+  const [targetType, setTargetType] = useState<CaptureTargetType>("current_screen");
+  const [captureRegion, setCaptureRegion] = useState<CaptureRegion>("ALL");
+  const [captureMode, setCaptureMode] = useState<CaptureMode>("execute");
+  const [screenSwitchDelayMs, setScreenSwitchDelayMs] = useState(500);
+  const [verifyDialogOpened, setVerifyDialogOpened] = useState(false);
+  const [closeDialogAfterCapture, setCloseDialogAfterCapture] = useState(false);
+  const [dialogs, setDialogs] = useState<DialogEntry[]>([]);
+  const [selectedDialogId, setSelectedDialogId] = useState("");
+  const [manualDialogId, setManualDialogId] = useState("");
+  const [presets, setPresets] = useState<DialogPreset[]>([]);
+  const [selectedPresetName, setSelectedPresetName] = useState("");
+  const [newPresetName, setNewPresetName] = useState("");
+  const [dialogStatus, setDialogStatus] = useState("");
 
   // Fetch supported formats on mount
   useEffect(() => {
@@ -136,6 +168,190 @@ export default function Hardcopy() {
   useEffect(() => {
     refreshLastCapture();
   }, []);
+
+  const loadPresets = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/hcopy/dialog-presets`);
+      if (!response.ok) return;
+      const data = await response.json();
+      const next: DialogPreset[] = Array.isArray(data.presets) ? data.presets : [];
+      setPresets(next);
+      if (next.length > 0 && !selectedPresetName) {
+        setSelectedPresetName(next[0].name);
+      }
+    } catch {
+      // Best effort
+    }
+  };
+
+  useEffect(() => {
+    void loadPresets();
+  }, []);
+
+  const handleScanOpenDialogs = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/hcopy/dialogs/open`);
+      const data = await response.json();
+      if (!response.ok || !data.ok) {
+        setDialogStatus(data.error || "Failed to query open dialogs.");
+        return;
+      }
+      const nextDialogs: DialogEntry[] = Array.isArray(data.dialogs) ? data.dialogs : [];
+      setDialogs(nextDialogs);
+      if (nextDialogs.length > 0) {
+        setSelectedDialogId(nextDialogs[0].raw_id);
+      }
+      setDialogStatus(nextDialogs.length > 0 ? `Found ${nextDialogs.length} open dialogs.` : "No open dialogs detected.");
+    } catch (err) {
+      setDialogStatus(`Dialog scan failed: ${err instanceof Error ? err.message : "Unknown error"}`);
+    }
+  };
+
+  const handleOpenDialog = async (dialogId: string) => {
+    try {
+      const response = await fetch(`${API_BASE}/hcopy/dialogs/open`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dialog_id: dialogId, delay_ms: screenSwitchDelayMs, verify: verifyDialogOpened }),
+      });
+      const data = await response.json();
+      setDialogStatus(data.ok ? `Opened dialog ${dialogId}` : `Open failed for ${dialogId}: ${data.error || "Unknown error"}`);
+      if (data.ok && verifyDialogOpened) {
+        setDialogs(Array.isArray(data.dialogs) ? data.dialogs : dialogs);
+      }
+    } catch (err) {
+      setDialogStatus(`Open failed for ${dialogId}: ${err instanceof Error ? err.message : "Unknown error"}`);
+    }
+  };
+
+  const handleCloseDialog = async (dialogId: string) => {
+    try {
+      const response = await fetch(`${API_BASE}/hcopy/dialogs/close`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dialog_id: dialogId }),
+      });
+      const data = await response.json();
+      setDialogStatus(data.ok ? `Closed dialog ${dialogId}` : `Close failed for ${dialogId}: ${data.error || "Unknown error"}`);
+    } catch (err) {
+      setDialogStatus(`Close failed for ${dialogId}: ${err instanceof Error ? err.message : "Unknown error"}`);
+    }
+  };
+
+  const handleCloseAllDialogs = async () => {
+    const confirmed = window.confirm("Close all open dialogs before capture?");
+    if (!confirmed) return;
+    try {
+      const response = await fetch(`${API_BASE}/hcopy/dialogs/close-all`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true }),
+      });
+      const data = await response.json();
+      setDialogStatus(data.ok ? "Closed all dialogs." : `Close all failed: ${data.error || "Unknown error"}`);
+      if (data.ok) {
+        setDialogs([]);
+      }
+    } catch (err) {
+      setDialogStatus(`Close all failed: ${err instanceof Error ? err.message : "Unknown error"}`);
+    }
+  };
+
+  const handleSavePreset = async (dialogId: string, region: CaptureRegion) => {
+    const name = (newPresetName || window.prompt("Preset name", "") || "").trim();
+    if (!name) {
+      setDialogStatus("Preset name is required.");
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/hcopy/dialog-presets`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, dialog_id: dialogId, region }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.ok) {
+        setDialogStatus(data.error || "Failed to save preset.");
+        return;
+      }
+      setDialogStatus(`Saved preset ${name}.`);
+      setNewPresetName("");
+      await loadPresets();
+      setSelectedPresetName(name);
+    } catch (err) {
+      setDialogStatus(`Failed to save preset: ${err instanceof Error ? err.message : "Unknown error"}`);
+    }
+  };
+
+  const getTargetDialogId = (): string | undefined => {
+    if (targetType === "manual") return manualDialogId.trim() || undefined;
+    if (targetType === "current_active_dialog") return selectedDialogId || undefined;
+    return undefined;
+  };
+
+  const handleCaptureSelectedScreen = async (overrideDialogId?: string) => {
+    if (!connected) {
+      setStatus("error");
+      setStatusMessage("Instrument not connected");
+      return;
+    }
+
+    setIsCapturing(true);
+    setStatus("capturing");
+    setStatusMessage("Switching screen and capturing hardcopy...");
+
+    try {
+      const targetDialogId = overrideDialogId || getTargetDialogId();
+      const response = await fetch(`${API_BASE}/hcopy/capture-selected`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          target_type: targetType,
+          dialog_id: targetDialogId,
+          preset_name: targetType === "preset" ? selectedPresetName : undefined,
+          mode: captureMode,
+          region: captureRegion,
+          screen_switch_delay_ms: screenSwitchDelayMs,
+          verify_dialog_opened: verifyDialogOpened,
+          close_dialog_after_capture: closeDialogAfterCapture,
+          format: selectedFormat,
+          auto_naming: useTimestamp,
+          auto_directory: saveDir.trim() || undefined,
+          local_dir: saveDir.trim() || undefined,
+          local_filename: filenamePrefix.trim() || undefined,
+        }),
+      });
+      const result = await response.json();
+
+      const logs: HardcopyLogEntry[] = Array.isArray(result.log)
+        ? result.log.map((entry: Record<string, unknown>) => ({
+            timestamp: String(entry.timestamp ?? new Date().toISOString()),
+            command: String(entry.command ?? ""),
+            command_type: String(entry.command_type ?? "action"),
+            ok: Boolean(entry.ok),
+            response: entry.response == null ? null : String(entry.response),
+            message: entry.message == null ? null : String(entry.message),
+            error: entry.error == null ? null : String(entry.error),
+          }))
+        : [];
+      setCaptureLog(logs);
+
+      if (result.ok) {
+        setStatus("success");
+        setStatusMessage(result.message || "Capture completed.");
+        await refreshLastCapture();
+      } else {
+        setStatus("error");
+        setStatusMessage(`Capture failed: ${result.error || "Unknown error"}`);
+      }
+    } catch (err) {
+      setStatus("error");
+      setStatusMessage(`Capture failed: ${err instanceof Error ? err.message : "Unknown error"}`);
+    } finally {
+      setIsCapturing(false);
+    }
+  };
 
   const handleCapture = async () => {
     if (!connected) {
@@ -342,6 +558,186 @@ export default function Hardcopy() {
             />
             Open after save
           </label>
+        </div>
+      </div>
+
+      <div className="hardcopy-dialog-section">
+        <h3>Screen / Dialog Selection Before Capture</h3>
+        <div className="hardcopy-dialog-grid">
+          <div className="control-group">
+            <label htmlFor="capture-target">Target</label>
+            <select
+              id="capture-target"
+              value={targetType}
+              onChange={(e) => setTargetType(e.target.value as CaptureTargetType)}
+              disabled={isCapturing}
+            >
+              <option value="current_screen">Current screen</option>
+              <option value="current_active_dialog">Current active dialog</option>
+              <option value="preset">Saved dialog preset</option>
+              <option value="manual">Manually entered dialog ID</option>
+            </select>
+          </div>
+
+          {targetType === "preset" ? (
+            <div className="control-group">
+              <label htmlFor="preset-name">Preset</label>
+              <select
+                id="preset-name"
+                value={selectedPresetName}
+                onChange={(e) => setSelectedPresetName(e.target.value)}
+                disabled={isCapturing}
+              >
+                <option value="">Select preset</option>
+                {presets.map((preset) => (
+                  <option key={preset.name} value={preset.name}>{preset.name}</option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+
+          {targetType === "manual" ? (
+            <div className="control-group">
+              <label htmlFor="manual-dialog-id">Manual dialog ID</label>
+              <input
+                id="manual-dialog-id"
+                type="text"
+                value={manualDialogId}
+                onChange={(e) => setManualDialogId(e.target.value)}
+                placeholder="DialogId from :DISPlay:DIALog:ID?"
+                disabled={isCapturing}
+              />
+            </div>
+          ) : null}
+
+          <div className="control-group">
+            <label htmlFor="capture-region">Capture region</label>
+            <select
+              id="capture-region"
+              value={captureRegion}
+              onChange={(e) => setCaptureRegion(e.target.value as CaptureRegion)}
+              disabled={isCapturing}
+            >
+              <option value="ALL">Full screen</option>
+              <option value="DIALog">Active dialog only</option>
+            </select>
+          </div>
+
+          <div className="control-group">
+            <label htmlFor="capture-mode">Output mode</label>
+            <select
+              id="capture-mode"
+              value={captureMode}
+              onChange={(e) => setCaptureMode(e.target.value as CaptureMode)}
+              disabled={isCapturing}
+            >
+              <option value="execute">Save to instrument (:HCOPy:EXECute)</option>
+              <option value="data">Capture to PC (:HCOPy:DATA?)</option>
+            </select>
+          </div>
+
+          <div className="control-group">
+            <label htmlFor="switch-delay">Screen switch delay (ms)</label>
+            <input
+              id="switch-delay"
+              type="number"
+              min={0}
+              value={screenSwitchDelayMs}
+              onChange={(e) => setScreenSwitchDelayMs(Math.max(0, Number(e.target.value) || 0))}
+              disabled={isCapturing}
+            />
+          </div>
+
+          <div className="checkbox-group">
+            <label>
+              <input
+                type="checkbox"
+                checked={verifyDialogOpened}
+                onChange={(e) => setVerifyDialogOpened(e.target.checked)}
+                disabled={isCapturing}
+              />
+              Verify dialog opened before hardcopy
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={closeDialogAfterCapture}
+                onChange={(e) => setCloseDialogAfterCapture(e.target.checked)}
+                disabled={isCapturing}
+              />
+              Close dialog after hardcopy
+            </label>
+          </div>
+        </div>
+
+        <div className="hardcopy-dialog-actions">
+          <button onClick={handleScanOpenDialogs} disabled={!connected || isCapturing} className="analyze-btn">Scan open dialogs</button>
+          <button onClick={handleCloseAllDialogs} disabled={!connected || isCapturing} className="analyze-btn">Close all dialogs</button>
+          <button onClick={() => void handleCaptureSelectedScreen()} disabled={!connected || isCapturing} className="capture-btn">
+            {isCapturing ? "Capturing..." : "Capture selected screen"}
+          </button>
+        </div>
+
+        {dialogStatus ? <div className="status-message">{dialogStatus}</div> : null}
+
+        <div className="control-group">
+          <label htmlFor="new-preset-name">Preset name for selected dialog</label>
+          <input
+            id="new-preset-name"
+            type="text"
+            value={newPresetName}
+            onChange={(e) => setNewPresetName(e.target.value)}
+            placeholder="e.g. Scenario screen"
+            disabled={isCapturing}
+          />
+        </div>
+
+        <div className="hardcopy-dialog-table-wrap">
+          <table className="hardcopy-dialog-table">
+            <thead>
+              <tr>
+                <th>Raw dialog ID</th>
+                <th>Dialog name</th>
+                <th>Qualifier</th>
+                <th>Instance/Tab</th>
+                <th>User label</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dialogs.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="no-capture">No open dialogs detected.</td>
+                </tr>
+              ) : dialogs.map((dialog) => (
+                <tr key={dialog.raw_id}>
+                  <td>{dialog.raw_id}</td>
+                  <td>{dialog.dialog_name}</td>
+                  <td>{dialog.qualifier || "-"}</td>
+                  <td>{dialog.instance_data || dialog.tab_data || "-"}</td>
+                  <td>{dialog.user_label}</td>
+                  <td>
+                    <div className="hardcopy-dialog-row-actions">
+                      <button className="analyze-btn" onClick={() => void handleOpenDialog(dialog.raw_id)} disabled={isCapturing}>Open</button>
+                      <button className="analyze-btn" onClick={() => void handleCloseDialog(dialog.raw_id)} disabled={isCapturing}>Close</button>
+                      <button className="analyze-btn" onClick={() => void handleSavePreset(dialog.raw_id, captureRegion)} disabled={isCapturing}>Save preset</button>
+                      <button
+                        className="capture-btn"
+                        onClick={() => {
+                          setTargetType("manual");
+                          setManualDialogId(dialog.raw_id);
+                          void handleCaptureSelectedScreen(dialog.raw_id);
+                        }}
+                        disabled={isCapturing}
+                      >
+                        Capture this dialog
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
