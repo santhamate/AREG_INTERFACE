@@ -1,7 +1,7 @@
 .sweep-root {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
 }
 
 .sweep-toolbar {
@@ -19,8 +19,9 @@
 
 .sweep-actions {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .sweep-grid-2 {
@@ -29,11 +30,52 @@
   gap: 8px;
 }
 
+.sweep-grid-simple {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.sweep-root .ucp-field > span {
+  display: block;
+  padding: 0 0 4px 1px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.sweep-root .ucp-btn {
+  padding: 8px 16px;
+  font-size: 13px;
+}
+
+.sweep-quick-panel {
+  border: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sweep-quick-title {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+
 .sweep-section-title {
   font-size: 13px;
   font-weight: 700;
+  line-height: 1.35;
   color: var(--text-primary);
-  margin-top: 8px;
+  margin-top: 10px;
+  padding-left: 2px;
 }
 
 .sweep-table-wrap {
@@ -116,7 +158,17 @@
     grid-template-columns: 1fr;
   }
 
+  .sweep-grid-simple {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .sweep-summary-grid {
     grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .sweep-grid-simple {
+    grid-template-columns: 1fr;
   }
 }

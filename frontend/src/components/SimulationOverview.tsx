@@ -85,13 +85,6 @@ function basename(path: string): string {
   return path.replace(/\\/g, "/").split("/").pop() ?? path;
 }
 
-function joinScenarioLocalFallback(remotePath: string | null): string | null {
-  if (!remotePath) return null;
-  const base = basename(remotePath);
-  if (!base) return null;
-  return `scenarios/${base}`;
-}
-
 export default function SimulationOverview() {
   const [data, setData] = useState<OverviewData | null>(null);
   const [decode, setDecode] = useState<ScenarioDecodeResult | null>(null);
@@ -130,26 +123,20 @@ export default function SimulationOverview() {
   };
 
   const decodeScenario = async (scenarioPath: string | null) => {
-    const fallbackLocalPath = data?.local_scenario_path ?? joinScenarioLocalFallback(scenarioPath);
+    if (!scenarioPath) {
+      setDecode(null);
+      setPlaybackSec(0);
+      return;
+    }
+
     const decodePayload = {
       remote_path: scenarioPath,
-      local_path: fallbackLocalPath,
+      local_path: null,
       force_redownload: false,
-      transfer_config: data?.connected && data?.host
-        ? {
-            protocol: "ftp",
-            host: data.host,
-            username: "instrument",
-            password: "instrument",
-            remote_dir: "/var/user/",
-            timeout_s: 15,
-            passive_mode: true,
-          }
-        : null,
+      transfer_config: null,   // backend uses MMEMory:DATA? over existing SCPI connection
     };
 
     const tryDecodeSelected = async () => {
-      if (!scenarioPath) return false;
       const r = await fetch(`${API_BASE}/scenario/inspector/decode-selected`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -179,20 +166,10 @@ export default function SimulationOverview() {
       return true;
     };
 
-    if (!scenarioPath && !data?.connected) {
-      setDecode(null);
-      setPlaybackSec(0);
-      return;
-    }
-
     try {
       const selectedOk = await tryDecodeSelected();
       if (!selectedOk) {
-        const loadedOk = await tryDecodeLoaded();
-        if (!loadedOk && !scenarioPath) {
-          setDecode(null);
-          setPlaybackSec(0);
-        }
+        await tryDecodeLoaded();
       }
     } catch {
       // Keep overview available even when decode endpoints are not ready.
@@ -444,68 +421,24 @@ export default function SimulationOverview() {
           </div>
           <div className="sim-stat-grid">
             <div className="sim-stat">
-              <span className="sim-label">Loaded Scenario</span>
-              <span className="sim-val" title={loadedScenarioPath ?? "-"}>
-                {loadedScenarioPath ? basename(loadedScenarioPath) : "-"}
-              </span>
+              <span className="sim-label">Start (m)</span>
+              <span className="sim-val">{primaryStart ? `${primaryStart.radius.toFixed(1)}` : "-"}</span>
             </div>
             <div className="sim-stat">
-              <span className="sim-label">Source Path</span>
-              <span className="sim-val" title={loadedScenarioPath ?? "-"}>
-                {loadedScenarioPath ?? "-"}
-              </span>
+              <span className="sim-label">Stop (m)</span>
+              <span className="sim-val">{primaryEnd ? `${primaryEnd.radius.toFixed(1)}` : "-"}</span>
             </div>
             <div className="sim-stat">
-              <span className="sim-label">Format</span>
-              <span className="sim-val">{decode?.format_detected ?? "-"}</span>
+              <span className="sim-label">Speed (m/s)</span>
+              <span className="sim-val">{primary?.speed != null ? `${primary.speed.toFixed(1)}` : "-"}</span>
             </div>
             <div className="sim-stat">
-              <span className="sim-label">Duration</span>
-              <span className="sim-val">{duration > 0 ? `${duration.toFixed(3)} s` : "-"}</span>
+              <span className="sim-label">Distance (m)</span>
+              <span className="sim-val">{primary ? `${primary.radius.toFixed(1)}` : "-"}</span>
             </div>
             <div className="sim-stat">
-              <span className="sim-label">Time Start</span>
-              <span className="sim-val">{timeStart != null ? `${timeStart.toFixed(3)} s` : "-"}</span>
-            </div>
-            <div className="sim-stat">
-              <span className="sim-label">Time End</span>
-              <span className="sim-val">{timeEnd != null ? `${timeEnd.toFixed(3)} s` : "-"}</span>
-            </div>
-            <div className="sim-stat">
-              <span className="sim-label">Timestep Count</span>
-              <span className="sim-val">{decode?.timestep_count ?? "-"}</span>
-            </div>
-            <div className="sim-stat">
-              <span className="sim-label">Object Count</span>
-              <span className="sim-val">{objectTotal}</span>
-            </div>
-            <div className="sim-stat">
-              <span className="sim-label">Sample Count</span>
-              <span className="sim-val">{sampleTotal}</span>
-            </div>
-            <div className="sim-stat">
-              <span className="sim-label">Azimuth</span>
-              <span className="sim-val">{primary?.azimuth_deg != null ? `${primary.azimuth_deg.toFixed(2)}°` : "-"}</span>
-            </div>
-            <div className="sim-stat">
-              <span className="sim-label">Speed</span>
-              <span className="sim-val">{primary?.speed != null ? `${primary.speed.toFixed(1)} m/s` : "-"}</span>
-            </div>
-            <div className="sim-stat">
-              <span className="sim-label">Distance</span>
-              <span className="sim-val">{primary ? `${primary.radius.toFixed(1)} m` : "-"}</span>
-            </div>
-            <div className="sim-stat">
-              <span className="sim-label">RCS</span>
-              <span className="sim-val">{primary?.rcs != null ? `${primary.rcs.toFixed(2)} m²` : "-"}</span>
-            </div>
-            <div className="sim-stat">
-              <span className="sim-label">Start Point</span>
-              <span className="sim-val">{primaryStart ? `${primaryStart.x.toFixed(1)}, ${primaryStart.y.toFixed(1)} m` : "-"}</span>
-            </div>
-            <div className="sim-stat">
-              <span className="sim-label">End Point</span>
-              <span className="sim-val">{primaryEnd ? `${primaryEnd.x.toFixed(1)}, ${primaryEnd.y.toFixed(1)} m` : "-"}</span>
+              <span className="sim-label">RCS (m²)</span>
+              <span className="sim-val">{primary?.rcs != null ? `${primary.rcs.toFixed(2)}` : "-"}</span>
             </div>
           </div>
           <div className="sim-timeline-row">
@@ -577,11 +510,8 @@ export default function SimulationOverview() {
               <span className="sim-count">Warnings: {decode?.warnings?.join(" | ")}</span>
             </div>
           )}
-          {(decode?.errors?.length ?? 0) > 0 && (
-            <div className="sim-footnotes">
-              <span className="sim-footer-err">Decode Errors: {decode?.errors?.join(" | ")}</span>
-            </div>
-          )}
+          {/* Decode errors are suppressed in the auto-polling overview;
+               file-not-found is normal when the device scenario list differs. */}
         </div>
       </div>
 

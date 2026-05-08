@@ -135,6 +135,12 @@ class ScenarioInspectorService:
         if transfer_config is None:
             return None, None, "No transfer configuration available to download remote scenario"
 
+        # Recreate cache dir in case it was removed while the server was running.
+        try:
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            pass
+
         dl = self.transfer_service.download_file(
             config=transfer_config,
             remote_path=remote_path,
@@ -142,7 +148,11 @@ class ScenarioInspectorService:
             overwrite=True,
         )
         if not dl.ok or not dl.local_path:
-            return None, None, dl.error or "Download failed"
+            raw_err = dl.error or "Download failed"
+            # Normalise FTP 550 "No such file" — not a real permission error.
+            if "550" in raw_err or "no such file" in raw_err.lower() or "not found" in raw_err.lower():
+                return None, None, f"File not found on device: {remote_path}"
+            return None, None, raw_err
 
         downloaded = Path(dl.local_path)
         if downloaded != cache_path:
@@ -364,6 +374,79 @@ class ScenarioInspectorService:
         time_end = max(ts_values) if ts_values else None
         return decoded, timestep_count, time_start, time_end, warnings, errors, raw_summary
 
+    @staticmethod
+    def _strip_ieee488_block_header(data: bytes) -> bytes:
+        """Strip the IEEE 488.2 definite-length binary block header (#N<N digits><payload>)
+        that instruments prepend to binary query responses (e.g. MMEMory:DATA?)."""
+        if len(data) < 2 or data[0:1] != b"#":
+            return data
+        digit_count = int(chr(data[1]))
+        if digit_count == 0:
+            # Indefinite block: #0 … <newline> — just drop the 2-byte prefix.
+            return data[2:]
+        header_len = 2 + digit_count
+        if len(data) < header_len:
+            return data  # malformed — leave as-is
+        return data[header_len:]
+
+    def decode_from_bytes(
+        self,
+        data: bytes,
+        remote_path: str | None,
+        loaded_scenario_path: str | None,
+    ) -> dict[str, Any]:
+        """Decode a scenario directly from raw bytes (e.g. fetched via SCPI MMEMory:DATA?)."""
+        data = self._strip_ieee488_block_header(data)
+        name = Path(remote_path or "scenario.osi").name
+        if len(data) == 0:
+            return {
+                "ok": False, "scenario_name": name, "file_path": None,
+                "remote_path": remote_path, "local_cached_path": None,
+                "loaded_scenario_path": loaded_scenario_path, "format_detected": "empty",
+                "duration": None, "time_start": None, "time_end": None,
+                "timestep_count": 0, "object_count": 0, "objects": [],
+                "warnings": [], "errors": ["Scenario file is empty"], "raw_summary": {"size_bytes": 0},
+            }
+
+        # Use a synthetic path just for format detection (extension matters).
+        synthetic_path = Path(name)
+        fmt = self.detect_format(synthetic_path, data)
+        objects: list[dict[str, Any]] = []
+        warnings: list[str] = []
+        errors: list[str] = []
+        raw_summary: dict[str, Any] = {"size_bytes": len(data), "magic_header_hex": data[:16].hex()}
+        timestep_count = 0
+        time_start: float | None = None
+        time_end: float | None = None
+
+        if fmt in ("json", "json-like"):
+            text = data.decode("utf-8", errors="replace")
+            objects, w, e, raw = self._decode_json_like(text)
+            warnings.extend(w); errors.extend(e); raw_summary.update(raw)
+            timestep_count = max((len(obj.get("samples", [])) for obj in objects), default=0)
+            starts = [obj.get("valid_time_start") for obj in objects if obj.get("valid_time_start") is not None]
+            ends = [obj.get("valid_time_end") for obj in objects if obj.get("valid_time_end") is not None]
+            time_start = min(starts) if starts else None
+            time_end = max(ends) if ends else None
+        elif fmt == "osi-framed-binary":
+            objs, steps, ts0, ts1, w, e, raw = self._decode_osi_framed_binary(data)
+            objects = objs; timestep_count = steps; time_start = ts0; time_end = ts1
+            warnings.extend(w); errors.extend(e); raw_summary.update(raw)
+        elif fmt in ("zip", "gzip", "xz"):
+            warnings.append("Compressed scenario format detected; automatic decompression is not implemented yet")
+        else:
+            errors.append("Unsupported or unknown binary scenario format")
+
+        duration = (time_end - time_start) if (time_start is not None and time_end is not None) else None
+        return {
+            "ok": len(errors) == 0, "scenario_name": name, "file_path": None,
+            "remote_path": remote_path, "local_cached_path": None,
+            "loaded_scenario_path": loaded_scenario_path, "format_detected": fmt,
+            "duration": duration, "time_start": time_start, "time_end": time_end,
+            "timestep_count": timestep_count, "object_count": len(objects), "objects": objects,
+            "warnings": warnings, "errors": errors, "raw_summary": raw_summary,
+        }
+
     def decode(
         self,
         remote_path: str | None,
@@ -401,7 +484,46 @@ class ScenarioInspectorService:
             }
 
         assert resolved_file is not None
-        data = resolved_file.read_bytes()
+        try:
+            data = resolved_file.read_bytes()
+        except PermissionError as exc:
+            return {
+                "ok": False,
+                "scenario_name": resolved_file.name,
+                "file_path": str(resolved_file),
+                "remote_path": remote_path,
+                "local_cached_path": cache_path,
+                "loaded_scenario_path": loaded_scenario_path,
+                "format_detected": "unknown",
+                "duration": None,
+                "time_start": None,
+                "time_end": None,
+                "timestep_count": 0,
+                "object_count": 0,
+                "objects": [],
+                "warnings": [],
+                "errors": [f"Permission denied reading scenario file: {exc}"],
+                "raw_summary": {},
+            }
+        except OSError as exc:
+            return {
+                "ok": False,
+                "scenario_name": resolved_file.name,
+                "file_path": str(resolved_file),
+                "remote_path": remote_path,
+                "local_cached_path": cache_path,
+                "loaded_scenario_path": loaded_scenario_path,
+                "format_detected": "unknown",
+                "duration": None,
+                "time_start": None,
+                "time_end": None,
+                "timestep_count": 0,
+                "object_count": 0,
+                "objects": [],
+                "warnings": [],
+                "errors": [f"OS error reading scenario file: {exc}"],
+                "raw_summary": {},
+            }
         if len(data) == 0:
             return {
                 "ok": False,

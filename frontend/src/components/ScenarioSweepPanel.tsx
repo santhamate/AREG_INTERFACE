@@ -106,6 +106,7 @@ function speedValueToKmh(value: number, unit: SpeedUnit): number {
 export default function ScenarioSweepPanel({ connected, mode = "full" }: SweepPanelProps) {
   const speedSweepOnly = mode === "speed-sweep";
   const [config, setConfig] = useState<ScenarioSweepConfig>(defaultScenarioSweepConfig());
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [rows, setRows] = useState<SweepResultRow[]>([]);
   const [speedCases, setSpeedCases] = useState<SpeedStepCase[]>([]);
   const [runner] = useState(() => new ScenarioSweepRunner());
@@ -676,6 +677,55 @@ export default function ScenarioSweepPanel({ connected, mode = "full" }: SweepPa
     setConfig((prev) => ({ ...prev, [key]: Number.isFinite(value) ? value : 0 }));
   };
 
+  const applyQuickPreset = (preset: "urban" | "highway" | "extended") => {
+    if (preset === "urban") {
+      setConfig((p) => ({
+        ...p,
+        startSpeed: 5,
+        stopSpeed: 60,
+        stepSize: 5,
+        speedUnit: "kmh",
+        startPositionM: 120,
+        endPositionM: 20,
+        repeatsPerSpeed: 1,
+        executionMode: "generate_upload_run",
+      }));
+      return;
+    }
+    if (preset === "highway") {
+      setConfig((p) => ({
+        ...p,
+        startSpeed: 20,
+        stopSpeed: 160,
+        stepSize: 10,
+        speedUnit: "kmh",
+        startPositionM: 160,
+        endPositionM: 20,
+        repeatsPerSpeed: 1,
+        executionMode: "generate_upload_run",
+      }));
+      return;
+    }
+    setConfig((p) => ({
+      ...p,
+      startSpeed: 10,
+      stopSpeed: 220,
+      stepSize: 10,
+      speedUnit: "kmh",
+      startPositionM: 240,
+      endPositionM: 20,
+      repeatsPerSpeed: 1,
+      executionMode: "generate_upload_run",
+    }));
+  };
+
+  const prepareAndRun = async () => {
+    await prepareSweep();
+    if (controlRef.current.stopRequested) return;
+    if (config.executionMode === "generate_upload_run") return;
+    await startSweep({ selectedOnly: false, fromRow: Math.max(1, fromIndex) });
+  };
+
   return (
     <div className="sweep-root">
       <div className="sweep-toolbar">
@@ -685,7 +735,8 @@ export default function ScenarioSweepPanel({ connected, mode = "full" }: SweepPa
         <div className="sweep-state">Current simulated speed: <strong>{currentSweepSpeedLabel}</strong></div>
         <div className="sweep-actions">
           <button className="ucp-btn" onClick={prepareSweep} disabled={busy}>Prepare Sweep</button>
-          <button className="ucp-btn" onClick={() => startSweep({ selectedOnly: false, fromRow: fromIndex })} disabled={busy}>Start Sweep</button>
+          {!speedSweepOnly && <button className="ucp-btn" onClick={() => startSweep({ selectedOnly: false, fromRow: fromIndex })} disabled={busy}>Start Sweep</button>}
+          {speedSweepOnly && <button className="ucp-btn" onClick={() => void prepareAndRun()} disabled={busy}>Prepare + Run</button>}
           {!speedSweepOnly && (
             <button className="ucp-btn secondary" onClick={() => startSweep({ selectedOnly: true, fromRow: fromIndex })} disabled={busy}>Run Selected Rows</button>
           )}
@@ -698,6 +749,63 @@ export default function ScenarioSweepPanel({ connected, mode = "full" }: SweepPa
         </div>
       </div>
 
+      {speedSweepOnly && (
+        <div className="sweep-quick-panel">
+          <div className="sweep-quick-title">Quick Setup</div>
+          <div className="sweep-actions">
+            <button className="ucp-btn secondary" onClick={() => applyQuickPreset("urban")}>Urban</button>
+            <button className="ucp-btn secondary" onClick={() => applyQuickPreset("highway")}>Highway</button>
+            <button className="ucp-btn secondary" onClick={() => applyQuickPreset("extended")}>Extended</button>
+          </div>
+          <div className="sweep-grid-simple">
+            <label className="ucp-field">
+              <span>Start speed</span>
+              <input type="number" value={config.startSpeed} onChange={(e) => setConfigNum("startSpeed", Number(e.target.value))} />
+            </label>
+            <label className="ucp-field">
+              <span>Stop speed</span>
+              <input type="number" value={config.stopSpeed} onChange={(e) => setConfigNum("stopSpeed", Number(e.target.value))} />
+            </label>
+            <label className="ucp-field">
+              <span>Step size</span>
+              <input type="number" value={config.stepSize} onChange={(e) => setConfigNum("stepSize", Number(e.target.value))} />
+            </label>
+            <label className="ucp-field">
+              <span>Unit</span>
+              <select value={config.speedUnit} onChange={(e) => setConfig((p) => ({ ...p, speedUnit: e.target.value as SpeedUnit }))}>
+                <option value="kmh">km/h</option>
+                <option value="ms">m/s</option>
+                <option value="mph">mph</option>
+              </select>
+            </label>
+            <label className="ucp-field">
+              <span>Start position (m)</span>
+              <input type="number" min={0} value={config.startPositionM} onChange={(e) => setConfigNum("startPositionM", Number(e.target.value))} />
+            </label>
+            <label className="ucp-field">
+              <span>Stop position (m)</span>
+              <input type="number" min={0} value={config.endPositionM} onChange={(e) => setConfigNum("endPositionM", Number(e.target.value))} />
+            </label>
+            <label className="ucp-field">
+              <span>Execution</span>
+              <select value={config.executionMode} onChange={(e) => setConfig((p) => ({ ...p, executionMode: e.target.value as SweepExecutionMode }))}>
+                <option value="generate_only">Generate only</option>
+                <option value="generate_upload">Generate + upload</option>
+                <option value="generate_upload_run">Generate + upload + run</option>
+              </select>
+            </label>
+            <label className="ucp-field">
+              <span>Repeats</span>
+              <input type="number" min={1} value={config.repeatsPerSpeed} onChange={(e) => setConfigNum("repeatsPerSpeed", Number(e.target.value))} />
+            </label>
+          </div>
+          <button className="ucp-btn secondary" onClick={() => setShowAdvanced((v) => !v)}>
+            {showAdvanced ? "Hide Advanced" : "Show Advanced"}
+          </button>
+        </div>
+      )}
+
+      {(!speedSweepOnly || showAdvanced) && (
       <div className="sweep-grid-2">
         <label className="ucp-field">
           <span>Start speed</span>
@@ -816,6 +924,7 @@ export default function ScenarioSweepPanel({ connected, mode = "full" }: SweepPa
           <input type="number" min={1} value={fromIndex} onChange={(e) => setFromIndex(Math.max(1, Number(e.target.value) || 1))} />
         </label>
       </div>
+      )}
 
       {validationErrors.length > 0 && (
         <div className="ucp-msg error">

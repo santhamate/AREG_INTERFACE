@@ -817,26 +817,70 @@ async def get_scenario_replay_mode() -> dict[str, object]:
 
 @router.post("/scenario/inspector/decode-selected", response_model=ScenarioDecodeResultModel)
 async def decode_selected_scenario(payload: ScenarioInspectorDecodeRequest) -> ScenarioDecodeResultModel:
-    result = scenario_inspector_service.decode(
-        remote_path=payload.remote_path,
-        local_path=payload.local_path,
-        transfer_config_payload=payload.transfer_config,
-        force_redownload=payload.force_redownload,
-        loaded_scenario_path=scenario_player_service.selected_scenario,
-    )
-    return ScenarioDecodeResultModel.model_validate(result)
+    try:
+        remote = payload.remote_path
+        # When SCPI is connected, fetch the file directly via MMEMory:DATA? — no FTP needed.
+        if remote and service.transport.connected:
+            try:
+                raw = await service.transport.query_bytes(
+                    f':MMEMory:DATA? "{remote}"', timeout_ms=30_000
+                )
+                result = scenario_inspector_service.decode_from_bytes(
+                    data=raw, remote_path=remote,
+                    loaded_scenario_path=scenario_player_service.selected_scenario,
+                )
+                return ScenarioDecodeResultModel.model_validate(result)
+            except Exception:
+                pass  # Fall through to FTP / local path resolve below
+        result = scenario_inspector_service.decode(
+            remote_path=remote,
+            local_path=payload.local_path,
+            transfer_config_payload=payload.transfer_config,
+            force_redownload=payload.force_redownload,
+            loaded_scenario_path=scenario_player_service.selected_scenario,
+        )
+        return ScenarioDecodeResultModel.model_validate(result)
+    except Exception as exc:
+        return ScenarioDecodeResultModel.model_validate({
+            "ok": False, "scenario_name": None, "file_path": None, "remote_path": payload.remote_path,
+            "local_cached_path": None, "loaded_scenario_path": None, "format_detected": "unknown",
+            "duration": None, "time_start": None, "time_end": None, "timestep_count": 0,
+            "object_count": 0, "objects": [], "warnings": [], "errors": [str(exc)], "raw_summary": {},
+        })
 
 
 @router.post("/scenario/inspector/decode-loaded", response_model=ScenarioDecodeResultModel)
 async def decode_loaded_scenario(payload: ScenarioInspectorDecodeRequest) -> ScenarioDecodeResultModel:
-    result = scenario_inspector_service.decode(
-        remote_path=scenario_player_service.selected_scenario,
-        local_path=payload.local_path,
-        transfer_config_payload=payload.transfer_config,
-        force_redownload=payload.force_redownload,
-        loaded_scenario_path=scenario_player_service.selected_scenario,
-    )
-    return ScenarioDecodeResultModel.model_validate(result)
+    try:
+        remote = scenario_player_service.selected_scenario
+        # When SCPI is connected, fetch the file directly via MMEMory:DATA? — no FTP needed.
+        if remote and service.transport.connected:
+            try:
+                raw = await service.transport.query_bytes(
+                    f':MMEMory:DATA? "{remote}"', timeout_ms=30_000
+                )
+                result = scenario_inspector_service.decode_from_bytes(
+                    data=raw, remote_path=remote,
+                    loaded_scenario_path=remote,
+                )
+                return ScenarioDecodeResultModel.model_validate(result)
+            except Exception:
+                pass  # Fall through to FTP / local path resolve below
+        result = scenario_inspector_service.decode(
+            remote_path=remote,
+            local_path=payload.local_path,
+            transfer_config_payload=payload.transfer_config,
+            force_redownload=payload.force_redownload,
+            loaded_scenario_path=remote,
+        )
+        return ScenarioDecodeResultModel.model_validate(result)
+    except Exception as exc:
+        return ScenarioDecodeResultModel.model_validate({
+            "ok": False, "scenario_name": None, "file_path": None, "remote_path": None,
+            "local_cached_path": None, "loaded_scenario_path": None, "format_detected": "unknown",
+            "duration": None, "time_start": None, "time_end": None, "timestep_count": 0,
+            "object_count": 0, "objects": [], "warnings": [], "errors": [str(exc)], "raw_summary": {},
+        })
 
 
 @router.post("/scenario/inspector/clear-cache", response_model=ScenarioInspectorClearCacheResponse)

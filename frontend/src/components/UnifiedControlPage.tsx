@@ -325,6 +325,7 @@ export default function UnifiedControlPage() {
   const [transferChecklist, setTransferChecklist] = useState<TransferChecklistItem[]>([]);
   const [transferLogs, setTransferLogs] = useState<string[]>([]);
   const [transferHelp, setTransferHelp] = useState<{ ftp: string[]; smb: string[]; usb: string[] }>({ ftp: [], smb: [], usb: [] });
+  const [generatorMode, setGeneratorMode] = useState<"simple" | "speed_sweep">("simple");
 
   // -- Scenario Inspector --
   const [inspectorResult, setInspectorResult] = useState<ScenarioDecodeResult | null>(null);
@@ -388,6 +389,7 @@ export default function UnifiedControlPage() {
   const [hcopyNewPresetName, setHcopyNewPresetName] = useState("");
   const [hcopyDialogMsg, setHcopyDialogMsg] = useState<string | null>(null);
   const [hcopyWorkflowLog, setHcopyWorkflowLog] = useState<HcopyWorkflowLogEntry[]>([]);
+  const [hcopyQuickOpen, setHcopyQuickOpen] = useState(false);
 
   // -------------------------------------------------------------------------
   // Session polling
@@ -1218,6 +1220,15 @@ export default function UnifiedControlPage() {
     }
   };
 
+  useEffect(() => {
+    if (!selectedScenario || !session.connected) {
+      return;
+    }
+    void decodeScenario(false);
+    // Decode details for the currently selected scenario so live controls can show key stats.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedScenario, session.connected]);
+
   const clearScenarioCache = async () => {
     setInspectorBusy(true);
     setInspectorError(null);
@@ -1663,6 +1674,19 @@ export default function UnifiedControlPage() {
     }
   }, [session.connected]);
 
+  useEffect(() => {
+    if (!hcopyQuickOpen) {
+      return;
+    }
+    const onKeyDown = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") {
+        setHcopyQuickOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [hcopyQuickOpen]);
+
   // -------------------------------------------------------------------------
   // Render helpers
   // -------------------------------------------------------------------------
@@ -1670,6 +1694,22 @@ export default function UnifiedControlPage() {
   const hasSelection = Boolean(selectedScenario);
   const selectedOpt = CONNECTION_OPTIONS.find((o) => o.value === protocol)!;
   const selectedInspectorObject = inspectorResult?.objects?.find((o) => o.object_id === selectedInspectorObjectId) ?? null;
+  const liveStatsObject = selectedInspectorObject ?? inspectorResult?.objects?.[0] ?? null;
+  const liveStartM = liveStatsObject?.min_distance ?? null;
+  const liveStopM = liveStatsObject?.max_distance ?? null;
+  const liveSpeedMs = liveStatsObject?.average_speed ?? liveStatsObject?.initial_speed ?? null;
+  const liveRcsM2 =
+    liveStatsObject?.rcs_summary?.average
+    ?? liveStatsObject?.rcs_summary?.max
+    ?? liveStatsObject?.rcs_summary?.min
+    ?? null;
+
+  const formatMetricWithUnit = (value: number | null | undefined, unit: string, digits = 2): string => {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      return "—";
+    }
+    return `${value.toFixed(digits)} ${unit}`;
+  };
 
   // =========================================================================
   // Render
@@ -1749,12 +1789,85 @@ export default function UnifiedControlPage() {
           {stateLabel(playbackState)}
         </div>
 
-        {connError && (
-          <span style={{ color: "var(--accent-red)", fontSize: 12, marginLeft: 8 }}>
-            {connError}
-          </span>
-        )}
+        <div className="ucp-topbar-right">
+          <button
+            className="ucp-btn secondary ucp-icon-btn"
+            onClick={() => setHcopyQuickOpen(true)}
+            disabled={!session.connected}
+            title="Open hardcopy quick actions"
+            aria-label="Open hardcopy quick actions"
+          >
+            📸
+          </button>
+
+          {connError && (
+            <span style={{ color: "var(--accent-red)", fontSize: 12 }}>
+              {connError}
+            </span>
+          )}
+        </div>
       </div>
+
+      {hcopyQuickOpen && (
+        <div className="ucp-modal-backdrop" onClick={() => setHcopyQuickOpen(false)}>
+          <div className="ucp-modal ucp-modal-hcopy" onClick={(e) => e.stopPropagation()}>
+            <div className="ucp-modal-header">
+              <div className="ucp-modal-title">Hardcopy Quick Access</div>
+              <button className="ucp-btn secondary" onClick={() => setHcopyQuickOpen(false)}>Close</button>
+            </div>
+
+            <div className="ucp-modal-body">
+              <div className="ucp-hcopy-row" style={{ alignItems: "end" }}>
+                <label className="ucp-hcopy-label" style={{ minWidth: 140 }}>
+                  Format
+                  <select className="ucp-cmd-input" value={hcopyFormat} onChange={(e) => setHcopyFormat(e.target.value)}>
+                    {"PNG,BMP,JPG,XPM".split(",").map((f) => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="ucp-hcopy-label" style={{ minWidth: 150 }}>
+                  Region
+                  <select className="ucp-cmd-input" value={hcopyRegion} onChange={(e) => setHcopyRegion(e.target.value)}>
+                    <option value="ALL">ALL</option>
+                    <option value="DIALog">DIALog</option>
+                  </select>
+                </label>
+                <label className="ucp-hcopy-label" style={{ minWidth: 170 }}>
+                  Capture mode
+                  <select
+                    className="ucp-cmd-input"
+                    value={hcopyCaptureMode}
+                    onChange={(e) => setHcopyCaptureMode(e.target.value as HcopyCaptureMode)}
+                  >
+                    <option value="execute">Save to instrument</option>
+                    <option value="data">Capture to PC</option>
+                  </select>
+                </label>
+                <button className="ucp-btn secondary" onClick={applyHcopySettings} disabled={hcopyBusy || !session.connected}>
+                  Apply
+                </button>
+              </div>
+
+              <div className="ucp-hcopy-actions">
+                <button className="ucp-btn" onClick={executeHcopy} disabled={hcopyBusy || !session.connected}>
+                  {hcopyBusy ? "Working…" : "Execute (→ Instrument)"}
+                </button>
+                <button className="ucp-btn success" onClick={() => captureSelectedHcopyScreen()} disabled={hcopyBusy || !session.connected}>
+                  {hcopyBusy ? "Working…" : "Capture Selected Screen"}
+                </button>
+                <button className="ucp-btn" onClick={captureHcopyData} disabled={hcopyBusy || !session.connected}>
+                  {hcopyBusy ? "Working…" : "Capture (→ PC)"}
+                </button>
+              </div>
+
+              {hcopyMsg && (
+                <div className={`ucp-msg ${hcopyMsgErr ? "error" : "success"}`}>{hcopyMsg}</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ================================================================
           MAIN CONTENT
@@ -1762,12 +1875,9 @@ export default function UnifiedControlPage() {
       <div className="ucp-main">
 
         {/* ============================================================
-            Simulation Overview – full width top (main function)
+            Live Scenario Control – transport buttons (top, always visible)
             ============================================================ */}
-        <Section icon="📊" title="Simulation Overview">
-          <SimulationOverview />
-
-          {/* ---- Scenario Player controls (merged) ---- */}
+        <Section icon="🎮" title="Live Scenario Control">
           <div className="ucp-player-inset">
             {/* Track display */}
             <div className="ucp-track-display" style={{ marginBottom: 10 }}>
@@ -1790,71 +1900,117 @@ export default function UnifiedControlPage() {
               </div>
             </div>
 
-            {/* Controls row */}
-            <div className="ucp-player-controls">
-              <label style={{ display: "flex", alignItems: "center", gap: 8, marginRight: 4 }}>
-                Replay
-                <select
-                  value={replayMode === "UNKNOWN" ? "SINGle" : replayMode}
-                  onChange={(e) => setReplayMode(e.target.value as ReplayMode)}
-                  disabled={!session.connected || playerBusy}
-                >
-                  <option value="SINGle">Single</option>
-                  <option value="LOOP">Loop</option>
-                </select>
-              </label>
-              <button
-                className="ucp-ctrl-btn secondary"
-                onClick={() => setReplayModeOnDevice(replayMode)}
-                disabled={!session.connected || playerBusy || replayMode === "UNKNOWN"}
-                title="Apply replay mode to instrument"
-              >
-                Apply Mode
-              </button>
-              <button
-                className="ucp-ctrl-btn"
-                onClick={loadScenario}
-                disabled={!hasSelection || playerBusy}
-                title={session.connected ? "Load scenario onto instrument" : "Load scenario into offline preview"}
-              >
-                ⏏ Load
-              </button>
-              <button
-                className="ucp-ctrl-btn play"
-                onClick={() => playerAction("Play", "/scenario/play")}
-                disabled={!hasSelection || playerBusy}
-                title={session.connected ? "Start playback" : "Start offline preview playback"}
-              >
-                ▶ Play
-              </button>
-              <button
-                className="ucp-ctrl-btn"
-                onClick={() => playerAction("Pause", "/scenario/pause")}
-                disabled={playbackState !== "playing" || playerBusy}
-                title={session.connected ? "Pause playback" : "Pause offline preview playback"}
-              >
-                ⏸ Pause
-              </button>
-              <button
-                className="ucp-ctrl-btn stop"
-                onClick={stopScenario}
-                title={session.connected ? "Stop playback immediately" : "Stop offline preview playback"}
-              >
-                ⏹ Stop
-              </button>
-              <button
-                className="ucp-ctrl-btn"
-                onClick={() => playerAction("Restart", "/scenario/restart")}
-                disabled={!hasSelection || playerBusy}
-                title={session.connected ? "Restart playback" : "Restart offline preview playback"}
-              >
-                🔄 Restart
-              </button>
-            </div>
+            <div className="ucp-live-control-grid">
+              <div className="ucp-live-control-pane">
+                <div className="ucp-player-controls">
+                  <div className="ucp-player-controls-row ucp-player-controls-row--mode">
+                    <label className="ucp-replay-select">
+                      <span>Replay</span>
+                      <select
+                        value={replayMode === "UNKNOWN" ? "SINGle" : replayMode}
+                        onChange={(e) => setReplayMode(e.target.value as ReplayMode)}
+                        disabled={!session.connected || playerBusy}
+                      >
+                        <option value="SINGle">Single</option>
+                        <option value="LOOP">Loop</option>
+                      </select>
+                    </label>
+                    <button
+                      className="ucp-ctrl-btn secondary ucp-ctrl-btn--compact"
+                      onClick={() => setReplayModeOnDevice(replayMode)}
+                      disabled={!session.connected || playerBusy || replayMode === "UNKNOWN"}
+                      title="Apply replay mode to instrument"
+                    >
+                      Apply Mode
+                    </button>
+                    <button
+                      className="ucp-ctrl-btn secondary ucp-ctrl-btn--compact"
+                      onClick={queryReplayMode}
+                      disabled={!session.connected || playerBusy}
+                      title="Query replay mode from instrument"
+                    >
+                      Read Mode
+                    </button>
+                    <button
+                      className="ucp-ctrl-btn secondary ucp-ctrl-btn--compact"
+                      onClick={queryStatus}
+                      disabled={playerBusy}
+                      title="Query current scenario status"
+                    >
+                      Refresh Status
+                    </button>
+                  </div>
 
-            {playerMsg && (
-              <div className="ucp-msg error" style={{ marginTop: 8 }}>{playerMsg}</div>
-            )}
+                  <div className="ucp-player-controls-row ucp-player-controls-row--actions">
+                    <button
+                      className="ucp-ctrl-btn"
+                      onClick={loadScenario}
+                      disabled={!hasSelection || playerBusy}
+                      title={session.connected ? "Load scenario onto instrument" : "Load scenario into offline preview"}
+                    >
+                      ⏏ Load
+                    </button>
+                    <button
+                      className="ucp-ctrl-btn play"
+                      onClick={() => playerAction("Play", "/scenario/play")}
+                      disabled={!hasSelection || playerBusy}
+                      title={session.connected ? "Start playback" : "Start offline preview playback"}
+                    >
+                      ▶ Play
+                    </button>
+                    <button
+                      className="ucp-ctrl-btn"
+                      onClick={() => playerAction("Pause", "/scenario/pause")}
+                      disabled={playbackState !== "playing" || playerBusy}
+                      title={session.connected ? "Pause playback" : "Pause offline preview playback"}
+                    >
+                      ⏸ Pause
+                    </button>
+                    <button
+                      className="ucp-ctrl-btn stop"
+                      onClick={stopScenario}
+                      title={session.connected ? "Stop playback immediately" : "Stop offline preview playback"}
+                    >
+                      ⏹ Stop
+                    </button>
+                    <button
+                      className="ucp-ctrl-btn"
+                      onClick={() => playerAction("Restart", "/scenario/restart")}
+                      disabled={!hasSelection || playerBusy}
+                      title={session.connected ? "Restart playback" : "Restart offline preview playback"}
+                    >
+                      🔄 Restart
+                    </button>
+                  </div>
+                </div>
+
+                {playerMsg && (
+                  <div className="ucp-msg error" style={{ marginTop: 8 }}>{playerMsg}</div>
+                )}
+              </div>
+
+              <div className="ucp-live-details-pane">
+                <div className="ucp-live-details-title">Scenario Details</div>
+                <div className="ucp-live-stats-grid">
+                  <div className="ucp-live-stat">
+                    <span className="label">Start</span>
+                    <span className="value">{formatMetricWithUnit(liveStartM, "m", 2)}</span>
+                  </div>
+                  <div className="ucp-live-stat">
+                    <span className="label">Stop</span>
+                    <span className="value">{formatMetricWithUnit(liveStopM, "m", 2)}</span>
+                  </div>
+                  <div className="ucp-live-stat">
+                    <span className="label">Speed</span>
+                    <span className="value">{formatMetricWithUnit(liveSpeedMs, "m/s", 2)}</span>
+                  </div>
+                  <div className="ucp-live-stat">
+                    <span className="label">RCS</span>
+                    <span className="value">{formatMetricWithUnit(liveRcsM2, "m²", 2)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </Section>
 
@@ -2034,26 +2190,73 @@ export default function UnifiedControlPage() {
 
         </div>{/* end ucp-player-log-grid */}
 
-        {/* Scenario Inspector section removed per UX request. */}
-
         {/* ============================================================
-          SECTION 4 – Scenario Speed Sweep (AREG)
+            Simulation Overview – below log + file explorer
             ============================================================ */}
-        <Section icon="🧪" title="Scenario Speed Sweep" defaultOpen={false}>
-          <ScenarioSweepPanel connected={session.connected} mode="speed-sweep" />
+        <Section icon="📊" title="Simulation Overview & Scenario Details" defaultOpen={false}>
+          <SimulationOverview />
         </Section>
 
         {/* ============================================================
-          SECTION 5 – Scenario Generator
+          SECTION 4 – Scenario Generator (simple + speed sweep)
             ============================================================ */}
         <Section icon="🎬" title="Scenario Generator" defaultOpen={false}>
-          <div className="ucp-generator-embed">
-            <ScenarioGenerator />
+          <div className="ucp-generator-shell">
+            <div className="ucp-generator-header">
+              <div>
+                <div className="ucp-generator-title">Generator Mode</div>
+                <div className="ucp-generator-subtitle">
+                  Use one workflow at a time: quick single-scenario creation or structured speed sweep generation.
+                </div>
+              </div>
+
+              <div className="ucp-generator-toggle" role="tablist" aria-label="Scenario generator mode">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={generatorMode === "simple"}
+                  className={`ucp-generator-tab ${generatorMode === "simple" ? "active" : ""}`}
+                  onClick={() => setGeneratorMode("simple")}
+                >
+                  ⚡ Simple
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={generatorMode === "speed_sweep"}
+                  className={`ucp-generator-tab ${generatorMode === "speed_sweep" ? "active" : ""}`}
+                  onClick={() => setGeneratorMode("speed_sweep")}
+                >
+                  🧪 Speed Sweep
+                </button>
+              </div>
+            </div>
+
+            <div className="ucp-generator-meta">
+              {generatorMode === "simple"
+                ? "Simple mode: create one scenario file quickly with template-driven parameters."
+                : "Speed sweep mode: build step cases across a speed range for repeatable validation runs."}
+            </div>
+
+            <div className="ucp-generator-stack" style={{ marginTop: 10 }}>
+              <div className="ucp-generator-block">
+                <div className="ucp-generator-block-title">
+                  {generatorMode === "simple" ? "Simple Scenario Generator" : "Speed Sweep Generator"}
+                </div>
+                <div className="ucp-generator-embed">
+                  {generatorMode === "simple" ? (
+                    <ScenarioGenerator />
+                  ) : (
+                    <ScenarioSweepPanel connected={session.connected} mode="speed-sweep" />
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </Section>
 
         {/* ============================================================
-          SECTION 6 – Hardcopy / Screenshot
+          SECTION 5 – Hardcopy / Screenshot
             ============================================================ */}
         <Section icon="📸" title="Hardcopy / Screenshot" defaultOpen={false}>
           <div className="ucp-hcopy-panel">
