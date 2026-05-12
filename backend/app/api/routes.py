@@ -91,6 +91,15 @@ from backend.app.models.scpi import (
     FileTransferResultResponse,
     FileTransferHelpResponse,
 )
+from backend.app.models.tcv907_radar import (
+    RadarConnectionRequest,
+    RadarConnectionResponse,
+    RadarStatisticsResponse,
+    SpeedHistoryResponse,
+    RadarStatusResponse,
+    SpeedMeasurementModel,
+)
+from backend.app.core.tcv907_radar_service import get_radar_service
 
 router = APIRouter()
 service = ScpiService()
@@ -1761,4 +1770,165 @@ async def scan_remote_osi_files(payload: FileTransferListRequest) -> FileTransfe
         warnings=op.warnings or [],
         likely_causes=file_transfer_service._guess_likely_causes(op.error) if not op.ok else [],
     )
+
+
+
+# ============================================================================
+# TCV907 Radar Endpoints
+# ============================================================================
+
+
+@router.post("/tcv907/connect", response_model=RadarConnectionResponse)
+async def tcv907_connect(payload: RadarConnectionRequest) -> RadarConnectionResponse:
+    """Connect to TCV907 radar device"""
+    try:
+        radar_service = get_radar_service()
+        
+        # Update radar configuration
+        radar_service.set_radar_config(payload.ip, payload.port)
+        
+        # Connect
+        success = radar_service.connect()
+        
+        stats = radar_service.get_statistics()
+        return RadarConnectionResponse(
+            ok=success,
+            connected=radar_service.is_connected(),
+            state=stats.get('state', 'error'),
+            radar_ip=payload.ip,
+            radar_port=payload.port,
+            message="Connected to radar" if success else "Failed to connect",
+            error=stats.get('last_error') if not success else None,
+        )
+    except Exception as ex:
+        raise HTTPException(status_code=500, detail=str(ex)) from ex
+
+
+@router.post("/tcv907/disconnect", response_model=RadarConnectionResponse)
+async def tcv907_disconnect() -> RadarConnectionResponse:
+    """Disconnect from TCV907 radar device"""
+    try:
+        radar_service = get_radar_service()
+        success = radar_service.disconnect()
+        
+        stats = radar_service.get_statistics()
+        return RadarConnectionResponse(
+            ok=success,
+            connected=False,
+            state=stats.get('state', 'disconnected'),
+            radar_ip=stats.get('radar_ip', ''),
+            radar_port=stats.get('radar_port', 0),
+            message="Disconnected from radar" if success else "Disconnect failed",
+        )
+    except Exception as ex:
+        raise HTTPException(status_code=500, detail=str(ex)) from ex
+
+
+@router.get("/tcv907/status", response_model=RadarStatusResponse)
+async def tcv907_status() -> RadarStatusResponse:
+    """Get TCV907 radar connection status and statistics"""
+    try:
+        radar_service = get_radar_service()
+        
+        connected = radar_service.is_connected()
+        stats_dict = radar_service.get_statistics()
+        last_speed_dict = radar_service.get_last_speed()
+        
+        # Convert stats dict to RadarStatisticsResponse
+        stats = RadarStatisticsResponse(
+            connected=stats_dict.get('connected', False),
+            state=stats_dict.get('state', 'disconnected'),
+            radar_ip=stats_dict.get('radar_ip', ''),
+            radar_port=stats_dict.get('radar_port', 0),
+            packets_received=stats_dict.get('packets_received', 0),
+            bytes_received=stats_dict.get('bytes_received', 0),
+            speeds_parsed=stats_dict.get('speeds_parsed', 0),
+            parse_errors=stats_dict.get('parse_errors', 0),
+            uptime_seconds=stats_dict.get('uptime_seconds', 0),
+            packet_rate_per_second=stats_dict.get('packet_rate_per_second', 0),
+            speed_history_count=stats_dict.get('speed_history_count', 0),
+            last_error=stats_dict.get('last_error'),
+        )
+        
+        # Convert last speed if available
+        last_speed = None
+        if last_speed_dict:
+            last_speed = SpeedMeasurementModel(
+                speed_kmh=last_speed_dict['speed_kmh'],
+                timestamp=last_speed_dict['timestamp'],
+                packet_number=last_speed_dict['packet_number'],
+                raw_data_hex=last_speed_dict['raw_data_hex'],
+            )
+        
+        return RadarStatusResponse(
+            ok=True,
+            connected=connected,
+            state=stats_dict.get('state', 'disconnected'),
+            last_speed=last_speed,
+            statistics=stats,
+            last_error=stats_dict.get('last_error'),
+        )
+    except Exception as ex:
+        raise HTTPException(status_code=500, detail=str(ex)) from ex
+
+
+@router.get("/tcv907/speed/last", response_model=dict)
+async def tcv907_get_last_speed() -> dict:
+    """Get the last received speed measurement"""
+    try:
+        radar_service = get_radar_service()
+        last_speed = radar_service.get_last_speed()
+        
+        if last_speed:
+            return {
+                "ok": True,
+                "measurement": last_speed,
+            }
+        else:
+            return {
+                "ok": True,
+                "measurement": None,
+                "message": "No speed data received yet",
+            }
+    except Exception as ex:
+        raise HTTPException(status_code=500, detail=str(ex)) from ex
+
+
+@router.get("/tcv907/speed/history", response_model=SpeedHistoryResponse)
+async def tcv907_get_speed_history(limit: int = Query(None, ge=1, le=1000)) -> SpeedHistoryResponse:
+    """Get speed measurement history"""
+    try:
+        radar_service = get_radar_service()
+        measurements_dict = radar_service.get_speed_history(limit=limit)
+        
+        # Convert to model objects
+        measurements = [
+            SpeedMeasurementModel(
+                speed_kmh=m['speed_kmh'],
+                timestamp=m['timestamp'],
+                packet_number=m['packet_number'],
+                raw_data_hex=m['raw_data_hex'],
+            )
+            for m in measurements_dict
+        ]
+        
+        return SpeedHistoryResponse(
+            ok=True,
+            count=len(measurements),
+            measurements=measurements,
+            limit=limit,
+        )
+    except Exception as ex:
+        raise HTTPException(status_code=500, detail=str(ex)) from ex
+
+
+@router.post("/tcv907/speed/clear")
+async def tcv907_clear_speed_history() -> dict[str, object]:
+    """Clear the speed measurement history"""
+    try:
+        radar_service = get_radar_service()
+        radar_service.clear_history()
+        return {"ok": True, "message": "Speed history cleared"}
+    except Exception as ex:
+        raise HTTPException(status_code=500, detail=str(ex)) from ex
 

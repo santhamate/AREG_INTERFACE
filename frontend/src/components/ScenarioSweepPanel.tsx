@@ -24,6 +24,7 @@ import { ScenarioSweepRunner, type SweepRunnerState } from "../sweep/ScenarioSwe
 import { SpeedComparator } from "../sweep/SpeedComparator";
 
 const API_BASE = "http://127.0.0.1:8000/api";
+const PREPARED_SWEEP_STORAGE_KEY = "areg.preparedSpeedSweep";
 const AREG_POSITION_MIN_MS = 0;
 const AREG_POSITION_MAX_MS = 12000;
 const SWEEP_POLL_INTERVAL_MS = 700;
@@ -101,6 +102,20 @@ function formatStateTag(status: SweepResultRow["status"]): StatusTag {
 
 function speedValueToKmh(value: number, unit: SpeedUnit): number {
   return mpsToUnit(speedToMps(value, unit), "kmh");
+}
+
+function persistPreparedSweep(cases: SpeedStepCase[], unit: SpeedUnit): void {
+  const payload = {
+    timestamp: new Date().toISOString(),
+    count: cases.length,
+    scenarios: cases.map((c, i) => ({
+      index: i + 1,
+      filename: c.filename,
+      aregPath: c.aregPath,
+      targetKmh: speedValueToKmh(c.expectedDisplaySpeed, unit),
+    })),
+  };
+  localStorage.setItem(PREPARED_SWEEP_STORAGE_KEY, JSON.stringify(payload));
 }
 
 export default function ScenarioSweepPanel({ connected, mode = "full" }: SweepPanelProps) {
@@ -320,6 +335,9 @@ export default function ScenarioSweepPanel({ connected, mode = "full" }: SweepPa
       }
 
       transition("READY", "State preparation complete -> READY");
+
+      // Make prepared sweep available to validation page without rescanning device scenarios.
+      persistPreparedSweep(cases, config.speedUnit);
 
       if (config.executionMode === "generate_upload_run") {
         void startSweep({ selectedOnly: false, fromRow: 1 });

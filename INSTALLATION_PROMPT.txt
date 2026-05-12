@@ -1,0 +1,277 @@
+# TCV907 Radar Client - Installation & Setup
+
+## Quick Installation (2 Minutes)
+
+### Step 1: Copy the Module
+Copy `tcv907_radar_client.py` into your project directory:
+```bash
+# From TargetSimulator directory
+cp tcv907_radar_client.py /path/to/your/project/
+```
+
+### Step 2: Verify Dependencies
+No external dependencies required! Only uses Python standard library:
+- `socket` - UDP communication
+- `threading` - Background data receiving
+- `struct` - Binary packet parsing
+- `logging` - Error reporting
+- `dataclasses` - Data structures
+
+**Python Version:** 3.7+ (3.8+ recommended)
+
+### Step 3: Import in Your Code
+```python
+from tcv907_radar_client import TCV907RadarClient
+
+# Create client
+client = TCV907RadarClient()
+
+# Connect to radar
+if client.connect():
+    print("✓ Connected to radar on 192.168.4.1:20000")
+else:
+    print("✗ Connection failed - check WiFi and radar power")
+```
+
+### Step 4: Receive Speed Data
+```python
+# Method 1: Real-time callback
+def handle_speed(measurement):
+    print(f"Speed: {measurement.speed_kmh:.2f} km/h")
+
+client = TCV907RadarClient(on_speed_callback=handle_speed)
+client.connect()
+
+# Method 2: Poll latest speed
+measurement = client.get_last_speed()
+if measurement:
+    print(f"Speed: {measurement.speed_kmh:.2f} km/h")
+
+# Method 3: Get speed history
+history = client.get_speed_history(limit=10)
+for m in history:
+    print(f"{m.timestamp}: {m.speed_kmh:.2f} km/h")
+```
+
+### Step 5: Check Status
+```python
+# Get statistics
+stats = client.get_statistics()
+print(f"Connected: {stats['connected']}")
+print(f"Packets received: {stats['packets_received']}")
+print(f"Speeds parsed: {stats['speeds_parsed']}")
+
+# Disconnect when done
+client.disconnect()
+```
+
+## Prerequisites Checklist
+
+Before running, ensure:
+- [ ] Device is connected to radar WiFi network
+- [ ] Radar is powered on
+- [ ] Port 20000 is not blocked by firewall
+- [ ] Python 3.7+ installed
+- [ ] `tcv907_radar_client.py` is in your project directory
+
+## Network Configuration
+
+Default settings (can be customized):
+```python
+client = TCV907RadarClient(
+    radar_ip="192.168.4.1",    # Radar WiFi gateway IP
+    radar_port=20000            # UDP port for speed data
+)
+```
+
+Check your IP:
+```bash
+# Windows
+ipconfig
+
+# Linux/Mac
+ifconfig
+```
+
+Should show an address like `192.168.x.x` if connected to radar WiFi.
+
+## Minimal Working Example
+
+Save this as `test_radar.py`:
+
+```python
+#!/usr/bin/env python3
+from tcv907_radar_client import TCV907RadarClient
+import time
+
+print("Testing TCV907 Radar Connection...\n")
+
+# Create client with callbacks
+def on_speed(measurement):
+    print(f"✓ Speed: {measurement.speed_kmh:6.2f} km/h | "
+          f"Time: {measurement.timestamp.strftime('%H:%M:%S')}")
+
+def on_connection(state):
+    print(f"  Connection: {state.value}")
+
+def on_error(error_msg):
+    print(f"  ERROR: {error_msg}")
+
+client = TCV907RadarClient(
+    on_speed_callback=on_speed,
+    on_connection_changed=on_connection,
+    on_error=on_error
+)
+
+# Connect
+print("Connecting to radar...")
+if client.connect():
+    print("✓ Connected! Receiving speeds for 30 seconds...\n")
+    
+    try:
+        time.sleep(30)
+    except KeyboardInterrupt:
+        print("\nStopped by user")
+    
+    # Print summary
+    client.disconnect()
+    stats = client.get_statistics()
+    print(f"\nSummary:")
+    print(f"  Packets: {stats['packets_received']}")
+    print(f"  Speeds: {stats['speeds_parsed']}")
+    print(f"  Rate: {stats['packet_rate_per_second']:.1f} pps")
+else:
+    print("✗ Failed to connect")
+
+```
+
+Run it:
+```bash
+python test_radar.py
+```
+
+## Troubleshooting
+
+### No data received?
+
+**Check WiFi Connection:**
+```bash
+# Windows: should show 192.168.4.x IP
+ipconfig | findstr "IPv4"
+
+# Mac/Linux: should show 192.168.4.x IP  
+ifconfig | grep inet
+```
+
+**Test Port Availability:**
+```python
+import socket
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+try:
+    sock.bind(('', 20000))
+    print("✓ Port 20000 available")
+    sock.close()
+except OSError as e:
+    print(f"✗ Port 20000 in use: {e}")
+```
+
+**Enable Debug Logging:**
+```python
+import logging
+logging.basicConfig(level=logging.DEBUG)
+
+client = TCV907RadarClient()
+client.connect()  # Will show detailed logs
+```
+
+### Import Error?
+
+Make sure file is in Python path:
+```python
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from tcv907_radar_client import TCV907RadarClient
+```
+
+### Connection Refused?
+
+- [ ] Radar is powered on (check LED lights)
+- [ ] Connected to correct WiFi SSID
+- [ ] Radar IP is 192.168.4.1 (default)
+- [ ] Port 20000 is not firewalled
+
+## Full API Reference
+
+```python
+# Create client
+client = TCV907RadarClient(
+    radar_ip="192.168.4.1",
+    radar_port=20000,
+    on_speed_callback=None,           # Called with SpeedMeasurement
+    on_connection_changed=None,        # Called with RadarConnectionState
+    on_error=None                      # Called with error message
+)
+
+# Connection
+client.connect()                       # Returns True/False
+client.disconnect()                    # Safe to call anytime
+client.is_connected                    # Boolean status
+
+# Get Data
+client.get_last_speed()                # Returns latest SpeedMeasurement or None
+client.get_speed_history(limit=10)     # Returns list of SpeedMeasurement
+client.get_speed_history()             # Returns all measurements
+client.clear_history()                 # Clear stored measurements
+
+# Statistics
+client.get_statistics()                # Returns dict with metrics
+```
+
+## Integration Patterns
+
+### Pattern 1: Fire-and-Forget
+```python
+client = TCV907RadarClient(on_speed_callback=my_handler)
+client.connect()
+# Data flows in background, my_handler called for each speed
+```
+
+### Pattern 2: Polling
+```python
+client = TCV907RadarClient()
+client.connect()
+
+while True:
+    speed = client.get_last_speed()
+    if speed:
+        print(f"Current: {speed.speed_kmh:.2f} km/h")
+    time.sleep(0.1)
+```
+
+### Pattern 3: Async Queue
+```python
+import queue
+q = queue.Queue()
+
+client = TCV907RadarClient(on_speed_callback=lambda m: q.put(m))
+client.connect()
+
+# Process in another thread
+while True:
+    measurement = q.get()
+    process_speed(measurement)
+```
+
+## Next Steps
+
+1. ✅ Copy `tcv907_radar_client.py` to your project
+2. ✅ Connect to radar WiFi network
+3. ✅ Run the minimal example above
+4. ✅ Integrate into your application using patterns above
+5. ✅ Reference full docs if needed
+
+---
+
+Ready to go! You now have real-time radar speed data in your project.
